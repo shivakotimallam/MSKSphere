@@ -17,7 +17,7 @@
   <meta name="twitter:title" content="MSKSphere - Your tasks. Your money. Your world.">
   <meta name="twitter:description" content="A personal productivity and finance application to plan tasks, track completion, build consistency, reflect on your days, and manage money.">
   <link rel="manifest" href="manifest.json">
-  <title>MSKSphere - Your tasks. Your money. Your world.</title>
+  <title>MSKSphere</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <style>
@@ -29,8 +29,8 @@
     .spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
   </style>
-  <link rel="preload" href="styles.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="styles.min.css"></noscript>
+  <link rel="preload" href="styles.min.css?v=8" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="styles.min.css?v=8"></noscript>
 </head>
 <body>
 
@@ -151,13 +151,15 @@
           </section>
           <section class="panel analytics-panel">
             <div class="panel-heading"><div><h3>Consistency Analytics</h3><p class="analytics-subtitle">Your daily completion trend over the last 14 days</p></div></div>
-            <div class="analytics-stats-row">
-              <div class="analytics-stat"><span class="stat-label">Avg. Completion</span><span class="stat-value" id="avgCompletion">0%</span></div>
-              <div class="analytics-stat"><span class="stat-label">Best Streak</span><span class="stat-value" id="bestStreak">0 days</span></div>
-              <div class="analytics-stat"><span class="stat-label">Consistency Score</span><span class="stat-value" id="consistencyScore">0</span></div>
+            <div class="consistency-stats-row">
+              <div class="consistency-stat"><span class="stat-label">Avg. Completion</span><span class="stat-value" id="avgCompletion">0%</span></div>
+              <div class="consistency-stat"><span class="stat-label">Best Streak</span><span class="stat-value" id="bestStreak">0 days</span></div>
+              <div class="consistency-stat"><span class="stat-label">Consistency Score</span><span class="stat-value" id="consistencyScore">0</span></div>
             </div>
-            <div class="analytics-chart-wrap"><svg id="consistencyChart" class="consistency-chart" viewBox="0 0 640 220" role="img" aria-label="Daily task completion percentage chart"></svg></div>
-            <div class="legend"><span><i class="dot green"></i> Excellent (75%+)</span><span><i class="dot yellow"></i> Good (50-75%)</span><span><i class="dot red"></i> Needs Work (&lt;50%)</span></div>
+            <div class="consistency-chart-container">
+              <div class="analytics-chart-wrap"><svg id="consistencyChart" class="consistency-chart" viewBox="0 0 640 220" role="img" aria-label="Daily task completion percentage chart"></svg></div>
+              <div class="legend"><span><i class="dot green"></i> Excellent (75%+)</span><span><i class="dot yellow"></i> Good (50-75%)</span><span><i class="dot red"></i> Needs Work (&lt;50%)</span></div>
+            </div>
           </section>
         </div>
       </section>
@@ -185,13 +187,15 @@
             <div class="month-controls"><button class="month-btn" onclick="changeMonth(-1)" aria-label="Previous month">‹</button><strong id="calendarMonth"></strong><button class="month-btn" onclick="changeMonth(1)" aria-label="Next month">›</button></div>
           </div>
           <div class="calendar-legend">
-            <span><i class="dot green"></i> Above 75%</span><span><i class="dot yellow"></i> 50%–75%</span><span><i class="dot red"></i> Below 50%</span><span><i class="dot neutral"></i> No activity</span><span><i class="dot goal-indicator"></i> 🎯 Goal Due</span>
+            <span><i class="dot green"></i> Above 75%</span><span><i class="dot yellow"></i> 50%–75%</span><span><i class="dot red"></i> Below 50%</span><span><i class="dot neutral"></i> No activity</span><span><i class="dot goal-indicator"></i> Goal Due</span>
           </div>
           <div class="calendar-grid" id="calendarGrid"></div>
         </section>
+        <div id="calendarGoalsBar" class="calendar-goals-bar"></div>
         <section class="panel day-summary" id="daySummary">
           <div class="panel-heading"><h3 id="summaryTitle">Select a date</h3><span id="summaryPercentage" class="percentage-pill">—</span></div>
           <div id="summaryContent" class="summary-content">Choose any date on the calendar to view its task summary.</div>
+          <div id="summaryTaskList" class="summary-task-list"></div>
           <div id="summaryNoteSection" class="summary-note-section" style="display:none;">
             <label>Daily Note</label>
             <div id="summaryNoteText" class="summary-note-text"></div>
@@ -205,11 +209,6 @@
             <div id="summaryBadThingText" class="summary-note-text"></div>
           </div>
           <button type="button" class="edit-note-btn" onclick="editNoteFromCalendar()" style="display:none;" id="editNoteBtn">Edit Note</button>
-          <div id="summaryGoalsSection" class="summary-note-section" style="display:none;">
-            <label>🎯 Goals Due on This Date</label>
-            <div id="summaryGoalsText" class="summary-note-text"></div>
-          </div>
-          <div id="summaryTaskList" class="summary-task-list"></div>
         </section>
       </section>
 
@@ -456,6 +455,7 @@
             </div>
           </div>
         </section>
+
       </section>
 
       <section id="templateDetailView" class="view-section">
@@ -887,6 +887,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
   <script src="js/config.js?v=5" defer></script>
-  <script src="script.min.js" defer></script>
+  <script src="script.min.js?v=8" defer></script>
 </body>
 </html>

@@ -18,12 +18,17 @@ CREATE TABLE IF NOT EXISTS template_tasks (
   template_id UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   task_name TEXT NOT NULL,
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
   start_time TEXT NOT NULL, -- Format: HH:MM
   end_time TEXT NOT NULL, -- Format: HH:MM
   selected_days TEXT[] NOT NULL, -- Array of day names: ['Monday', 'Tuesday', etc.]
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- For existing databases: add priority column if missing
+ALTER TABLE template_tasks
+  ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium';
 
 -- Add columns to existing tasks table for template source tracking
 ALTER TABLE tasks

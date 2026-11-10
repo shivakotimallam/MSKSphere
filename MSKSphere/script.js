@@ -425,9 +425,9 @@ async function loadUserData() {
   // Load essential data first (tasks and completions) for faster initial load
   // Only select needed columns to reduce data transfer
   const [tasksData, completionsData, notesData] = await Promise.all([
-    window.supabase.from('tasks').select('id,name,priority,repetition,days,due_date').eq('user_id', user.id).order('created_at', { ascending: false }),
+    window.supabase.from('tasks').select('id,title,priority,recurrence_type,custom_days,start_date,due_date,task_source,source_template_id,source_template_task_id,template_icon_snapshot,scheduled_start_time,scheduled_end_time').eq('user_id', user.id).order('created_at', { ascending: false }),
     window.supabase.from('task_completions').select('id,task_id,completion_date,completed').eq('user_id', user.id),
-    window.supabase.from('daily_notes').select('id,date,note,best_thing,bad_thing').eq('user_id', user.id)
+    window.supabase.from('daily_notes').select('id,note_date,note,best_thing,bad_thing').eq('user_id', user.id)
   ]);
 
   tasks = tasksData.data || [];
@@ -466,7 +466,7 @@ async function loadUserData() {
   // Load remaining data in background after essential data is loaded
   Promise.all([
     window.supabase.from('templates').select('id,name,icon').eq('user_id', user.id).order('created_at', { ascending: false }),
-    window.supabase.from('template_tasks').select('id,template_id,name,start_time,end_time,priority').eq('user_id', user.id).order('start_time', { ascending: true }),
+    window.supabase.from('template_tasks').select('id,template_id,task_name,start_time,end_time,priority,selected_days').eq('user_id', user.id).order('start_time', { ascending: true }),
     window.supabase.from('goals').select('id,name,deadline,description,completed').eq('user_id', user.id).order('deadline', { ascending: true })
   ]).then(([templatesData, templateTasksData, goalsData]) => {
     templates = templatesData.data || [];
@@ -1008,10 +1008,7 @@ async function toggleTask(taskId, dateString) {
     // Update analytics if analytics view is active
     const analyticsView = document.getElementById('analyticsView');
     if (analyticsView && analyticsView.classList.contains('active')) {
-      updateWeeklyReflection();
-      updateDisciplineScore();
-      updateMonthlyOverview();
-      updateProductivityInsights();
+      updateAnalytics();
     }
   } catch (error) {
     // Revert on error
@@ -1163,11 +1160,9 @@ function renderCalendar() {
     // Goal indicator
     let goalIndicator = '';
     if (hasGoals) {
-      if (hasIncompleteGoals) {
-        goalIndicator = '<span class="calendar-goal-indicator incomplete">🎯</span>';
-      } else {
-        goalIndicator = '<span class="calendar-goal-indicator completed">✓</span>';
-      }
+      goalIndicator = hasIncompleteGoals
+        ? '<span class="calendar-goal-indicator incomplete"></span>'
+        : '<span class="calendar-goal-indicator completed"></span>';
     }
 
     markup += `<button class="calendar-day ${color} ${date === selectedDate ? 'selected' : ''} ${date === today ? 'today' : ''} ${hasIncompleteGoals ? 'has-goal' : ''}" onclick="selectCalendarDate('${date}')">
@@ -1203,25 +1198,28 @@ function renderDaySummary(date) {
   pill.textContent = stats.total ? `${stats.percentage}% complete` : 'No activity';
   pill.className = `percentage-pill ${stats.total ? completionClass(stats.percentage) : 'neutral'}`;
 
-  // Display goals due on this date
+  // Goals due on this date
   const dayGoals = goals.filter(g => g.deadline === date);
-  const goalsSection = document.getElementById('summaryGoalsSection');
-  const goalsText = document.getElementById('summaryGoalsText');
-  
-  if (dayGoals.length > 0) {
-    goalsSection.style.display = 'block';
-    goalsText.innerHTML = dayGoals.map(goal => {
-      const statusClass = goal.completed ? 'completed' : (goal.deadline < localDateString() ? 'overdue' : 'pending');
-      const statusText = goal.completed ? '✓ Completed' : (goal.deadline < localDateString() ? '⚠️ Overdue' : '🎯 Due');
-      return `<div class="summary-goal-item ${statusClass}">
-        <strong>${escapeHtml(goal.name || 'Unnamed Goal')}</strong>
-        <span class="goal-status">${statusText}</span>
-        ${goal.description ? `<div class="goal-desc">${escapeHtml(goal.description)}</div>` : ''}
-      </div>`;
-    }).join('');
-  } else {
-    goalsSection.style.display = 'none';
-    goalsText.innerHTML = '';
+
+  // Goals bar below the calendar — only visible on a goal's deadline day
+  const goalsBar = document.getElementById('calendarGoalsBar');
+  if (goalsBar) {
+    if (dayGoals.length > 0) {
+      const barDate = new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      goalsBar.innerHTML = `
+        <span class="calendar-goals-title">Goals due · ${barDate}</span>
+        <div class="calendar-goals-chips">
+          ${dayGoals.map(goal => {
+            const status = goal.completed ? 'completed' : (goal.deadline < localDateString() ? 'overdue' : 'pending');
+            const statusText = goal.completed ? 'Completed' : (status === 'overdue' ? 'Overdue' : 'Due');
+            return `<span class="goal-chip ${status}">${escapeHtml(goal.name || 'Unnamed Goal')}<em>${statusText}</em></span>`;
+          }).join('')}
+        </div>`;
+      goalsBar.style.display = 'block';
+    } else {
+      goalsBar.innerHTML = '';
+      goalsBar.style.display = 'none';
+    }
   }
 
   // Load and display daily note sections
@@ -4219,10 +4217,6 @@ function updateAnalytics() {
   updateOverviewCards(startDate, endDate);
   updateTaskAnalysis(startDate, endDate);
   updateExpenseAnalysis(startDate, endDate);
-  updateDisciplineAnalysis(startDate, endDate);
-  updatePersonalGrowth(startDate, endDate);
-  updateSmartInsights(startDate, endDate);
-  updatePersonalRecords();
 }
 
 function updateOverviewCards(startDate, endDate) {
@@ -4247,20 +4241,11 @@ function updateOverviewCards(startDate, endDate) {
   const totalExpenses = periodTransactions
     .filter(t => t.transaction_type === 'expense')
     .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  const netSavings = totalIncome - totalExpenses;
-  const totalBalance = accounts.reduce((sum, acc) => sum + parseFloat(acc.current_balance || 0), 0);
-  
-  // Discipline score (from selected period)
-  const disciplineScore = calculateDisciplineScore(startDate, endDate);
-  
   // Update UI
   document.getElementById('overviewTasksCompleted').textContent = completedTasks;
   document.getElementById('overviewTaskPercentage').textContent = `${taskPercentage}%`;
   document.getElementById('overviewIncome').textContent = `₹${totalIncome.toFixed(0)}`;
   document.getElementById('overviewExpenses').textContent = `₹${totalExpenses.toFixed(0)}`;
-  document.getElementById('overviewBalance').textContent = `₹${totalBalance.toFixed(0)}`;
-  document.getElementById('overviewSavings').textContent = `₹${netSavings.toFixed(0)}`;
-  document.getElementById('overviewDiscipline').textContent = disciplineScore;
 }
 
 function updateTaskAnalysis(startDate, endDate) {
@@ -4269,68 +4254,29 @@ function updateTaskAnalysis(startDate, endDate) {
   let completed = 0;
   let pending = 0;
   let overdue = 0;
-  const dayStats = {};
-  
+
   taskDates.forEach(date => {
     const stats = getDayStats(date);
     totalCreated += stats.total;
     completed += stats.completed;
     pending += stats.pending;
     overdue += stats.overdue;
-    dayStats[date] = stats;
   });
   
   const completionRate = totalCreated > 0 ? Math.round((completed / totalCreated) * 100) : 0;
   const avgPerDay = taskDates.length > 0 ? (completed / taskDates.length).toFixed(1) : 0;
-  
-  // Find best and worst days
-  let bestDay = '—';
-  let worstDay = '—';
-  let bestDayVal = 0;
-  let worstDayVal = Infinity;
-  
-  Object.entries(dayStats).forEach(([date, stats]) => {
-    if (stats.total > 0) {
-      if (stats.completed > bestDayVal) {
-        bestDayVal = stats.completed;
-        bestDay = new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
-      }
-      if (stats.completed < worstDayVal) {
-        worstDayVal = stats.completed;
-        worstDay = new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
-      }
-    }
-  });
-  
+
   // Update UI
-  document.getElementById('taskTotalCreated').textContent = totalCreated;
   document.getElementById('taskCompleted').textContent = completed;
   document.getElementById('taskPending').textContent = pending;
-  document.getElementById('taskOverdue').textContent = overdue;
   document.getElementById('taskCompletionRate').textContent = `${completionRate}%`;
   document.getElementById('taskAvgPerDay').textContent = avgPerDay;
-  document.getElementById('taskBestDay').textContent = bestDay;
-  document.getElementById('taskWorstDay').textContent = worstDay;
-  
+
   // Update charts
   renderSimpleBarChart('taskCompletionChart', [
     { label: 'Completed', value: completed, color: '#16a34a' },
     { label: 'Pending', value: pending, color: '#ffc107' },
     { label: 'Overdue', value: overdue, color: '#dc2626' }
-  ]);
-  
-  // Priority distribution
-  const priorities = { High: 0, Medium: 0, Low: 0 };
-  tasks.filter(t => t.date >= startDate && t.date <= endDate).forEach(task => {
-    if (priorities[task.priority] !== undefined) {
-      priorities[task.priority]++;
-    }
-  });
-  
-  renderSimpleBarChart('taskPriorityChart', [
-    { label: 'High', value: priorities.High, color: '#dc2626' },
-    { label: 'Medium', value: priorities.Medium, color: '#ffc107' },
-    { label: 'Low', value: priorities.Low, color: '#16a34a' }
   ]);
 }
 
@@ -4347,57 +4293,21 @@ function updateExpenseAnalysis(startDate, endDate) {
   
   const days = getDateRange(startDate, endDate).length;
   const avgDailySpend = days > 0 ? (totalExpenses / days).toFixed(0) : 0;
-  
-  // Find highest and lowest spending days
-  const dailyExpenses = {};
-  periodTransactions.filter(t => t.transaction_type === 'expense').forEach(t => {
-    dailyExpenses[t.date] = (dailyExpenses[t.date] || 0) + parseFloat(t.amount || 0);
-  });
-  
-  let highestDay = '—';
-  let lowestDay = '—';
-  let highestVal = 0;
-  let lowestVal = Infinity;
-  
-  Object.entries(dailyExpenses).forEach(([date, amount]) => {
-    if (amount > highestVal) {
-      highestVal = amount;
-      highestDay = new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-    if (amount < lowestVal) {
-      lowestVal = amount;
-      lowestDay = new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-  });
-  
+
   // Category breakdown
   const categories = {};
   periodTransactions.filter(t => t.transaction_type === 'expense').forEach(t => {
     categories[t.category] = (categories[t.category] || 0) + parseFloat(t.amount || 0);
   });
-  
+
   const sortedCategories = Object.entries(categories).sort((a, b) => b[1] - a[1]);
-  const topCategory = sortedCategories.length > 0 ? sortedCategories[0][0] : '—';
-  
-  // Account balances
-  const accountBalances = accounts.map(acc => `${acc.name}: ₹${parseFloat(acc.current_balance || 0).toFixed(0)}`).join(', ') || '—';
-  
+
   // Update UI
   document.getElementById('expenseIncome').textContent = `₹${totalIncome.toFixed(0)}`;
   document.getElementById('expenseTotal').textContent = `₹${totalExpenses.toFixed(0)}`;
   document.getElementById('expenseSavings').textContent = `₹${netSavings.toFixed(0)}`;
   document.getElementById('expenseAvgDaily').textContent = `₹${avgDailySpend}`;
-  document.getElementById('expenseHighestDay').textContent = highestDay;
-  document.getElementById('expenseLowestDay').textContent = lowestDay;
-  document.getElementById('expenseTopCategory').textContent = topCategory;
-  document.getElementById('expenseAccountBalances').textContent = accountBalances;
-  
-  // Update charts
-  renderSimpleBarChart('incomeExpenseChart', [
-    { label: 'Income', value: totalIncome, color: '#16a34a' },
-    { label: 'Expenses', value: totalExpenses, color: '#dc2626' }
-  ]);
-  
+
   const topCategories = sortedCategories.slice(0, 5).map(([cat, amt]) => ({
     label: cat,
     value: amt,
@@ -4405,189 +4315,6 @@ function updateExpenseAnalysis(startDate, endDate) {
   }));
   
   renderSimpleBarChart('categoryChart', topCategories);
-}
-
-function updateDisciplineAnalysis(startDate, endDate) {
-  const dates = getDateRange(startDate, endDate);
-  const disciplineScore = calculateDisciplineScore(startDate, endDate);
-  
-  // Calculate streaks
-  const currentStreak = calculateStreak();
-  const bestStreak = calculateBestStreak(startDate, endDate);
-  
-  // Calculate perfect days
-  let perfectDays = 0;
-  let activeDays = 0;
-  
-  dates.forEach(date => {
-    const stats = getDayStats(date);
-    if (stats.total > 0) {
-      activeDays++;
-      if (stats.percentage === 100) perfectDays++;
-    }
-  });
-  
-  const consistency = activeDays > 0 ? Math.round((perfectDays / activeDays) * 100) : 0;
-  
-  // Update UI
-  document.getElementById('disciplineScoreDetail').textContent = disciplineScore;
-  document.getElementById('disciplineCurrentStreak').textContent = `${currentStreak} days`;
-  document.getElementById('disciplineBestStreak').textContent = `${bestStreak} days`;
-  document.getElementById('disciplinePerfectDays').textContent = perfectDays;
-  document.getElementById('disciplineConsistency').textContent = `${consistency}%`;
-  
-  // Update circular progress
-  const ring = document.getElementById('disciplineRingDetail');
-  if (ring) {
-    const circumference = 2 * Math.PI * 54;
-    const offset = circumference - (disciplineScore / 100) * circumference;
-    ring.style.strokeDashoffset = offset;
-  }
-  
-  // Render discipline trend chart
-  renderDisciplineTrendChart(dates);
-}
-
-function updatePersonalGrowth(startDate, endDate) {
-  // Calculate previous period
-  const daysDiff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-  const prevEndDate = new Date(startDate);
-  prevEndDate.setDate(prevEndDate.getDate() - 1);
-  const prevStartDate = new Date(prevEndDate);
-  prevStartDate.setDate(prevStartDate.getDate() - daysDiff + 1);
-  
-  const prevStartStr = localDateString(prevStartDate);
-  const prevEndStr = localDateString(prevEndDate);
-  
-  // Current period stats
-  const currentTaskStats = getPeriodTaskStats(startDate, endDate);
-  const currentExpenseStats = getPeriodExpenseStats(startDate, endDate);
-  
-  // Previous period stats
-  const prevTaskStats = getPeriodTaskStats(prevStartStr, prevEndStr);
-  const prevExpenseStats = getPeriodExpenseStats(prevStartStr, prevEndStr);
-  
-  // Calculate changes
-  const taskChange = calculatePercentageChange(prevTaskStats.completed, currentTaskStats.completed);
-  const expenseChange = calculatePercentageChange(prevExpenseStats.expenses, currentExpenseStats.expenses);
-  const savingsChange = calculatePercentageChange(prevExpenseStats.savings, currentExpenseStats.savings);
-  
-  const currentDiscipline = calculateDisciplineScore(startDate, endDate);
-  const prevDiscipline = calculateDisciplineScore(prevStartStr, prevEndStr);
-  const disciplineChange = currentDiscipline - prevDiscipline;
-  
-  // Update UI
-  updateGrowthMetric('growthTaskChange', taskChange, 'tasks');
-  updateGrowthMetric('growthExpenseChange', expenseChange, 'spending');
-  updateGrowthMetric('growthSavingsChange', savingsChange, 'savings');
-  updateGrowthMetric('growthDisciplineChange', disciplineChange, 'points');
-  
-  // Generate insight
-  let insight = 'Complete tasks and track expenses to see your growth trends.';
-  if (taskChange > 0 && savingsChange > 0) {
-    insight = 'Great progress! You completed more tasks and saved more compared to the previous period.';
-  } else if (taskChange > 0) {
-    insight = 'Your task completion improved this period. Keep it up!';
-  } else if (savingsChange > 0) {
-    insight = 'Your savings increased compared to the previous period. Excellent financial discipline!';
-  } else if (taskChange < 0 && expenseChange > 0) {
-    insight = 'Task completion decreased and spending increased. Focus on both areas for improvement.';
-  }
-  
-  document.getElementById('growthInsight').textContent = insight;
-}
-
-function updateSmartInsights(startDate, endDate) {
-  const insights = [];
-  
-  // Task insights
-  const dates = getDateRange(startDate, endDate);
-  const weekendTasks = 0;
-  const weekdayTasks = 0;
-  
-  dates.forEach(date => {
-    const d = new Date(`${date}T12:00:00`);
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    const stats = getDayStats(date);
-    if (isWeekend) {
-      weekendTasks += stats.completed;
-    } else {
-      weekdayTasks += stats.completed;
-    }
-  });
-  
-  if (weekdayTasks > weekendTasks * 1.5) {
-    insights.push('You complete more tasks on weekdays than weekends. Consider maintaining some weekend productivity.');
-  } else if (weekendTasks > weekdayTasks * 1.5) {
-    insights.push('Great weekend productivity! You\'re making good use of your free time.');
-  }
-  
-  // Expense insights
-  const categories = {};
-  transactions.filter(t => t.date >= startDate && t.date <= endDate && t.transaction_type === 'expense').forEach(t => {
-    categories[t.category] = (categories[t.category] || 0) + parseFloat(t.amount || 0);
-  });
-  
-  const sortedCategories = Object.entries(categories).sort((a, b) => b[1] - a[1]);
-  if (sortedCategories.length > 0) {
-    const totalExpenses = Object.values(categories).reduce((a, b) => a + b, 0);
-    const topCategory = sortedCategories[0];
-    const topPercentage = ((topCategory[1] / totalExpenses) * 100).toFixed(0);
-    insights.push(`Your ${topCategory[0]} expenses account for ${topPercentage}% of your spending this period.`);
-  }
-  
-  // Discipline insights
-  const disciplineScore = calculateDisciplineScore(startDate, endDate);
-  if (disciplineScore >= 90) {
-    insights.push('Outstanding discipline! Your consistency is excellent.');
-  } else if (disciplineScore >= 70) {
-    insights.push('Good consistency! Small improvements could push you to excellence.');
-  } else if (disciplineScore >= 50) {
-    insights.push('You\'re building momentum. Focus on completing more planned tasks.');
-  } else if (disciplineScore > 0) {
-    insights.push('There\'s room for improvement. Try to plan fewer tasks and complete them consistently.');
-  }
-  
-  // Update UI
-  const insightsContainer = document.getElementById('smartInsights');
-  if (insights.length > 0) {
-    insightsContainer.innerHTML = insights.map(insight => 
-      `<div class="insight-item">${insight}</div>`
-    ).join('');
-  } else {
-    insightsContainer.innerHTML = '<p class="empty-insights">Complete tasks and track expenses to receive personalized insights.</p>';
-  }
-}
-
-function updatePersonalRecords() {
-  // Most tasks in one day
-  let mostTasksInDay = 0;
-  const dayTaskCounts = {};
-  
-  tasks.forEach(task => {
-    if (task.date) {
-      dayTaskCounts[task.date] = (dayTaskCounts[task.date] || 0) + 1;
-    }
-  });
-  
-  Object.values(dayTaskCounts).forEach(count => {
-    if (count > mostTasksInDay) mostTasksInDay = count;
-  });
-  
-  // Longest streak
-  const longestStreak = calculateLongestStreak();
-  
-  // Best weekly rate
-  const bestWeeklyRate = calculateBestWeeklyRate();
-  
-  // Highest monthly savings
-  const bestMonthlySavings = calculateBestMonthlySavings();
-  
-  // Update UI
-  document.getElementById('recordMostTasks').textContent = mostTasksInDay;
-  document.getElementById('recordLongestStreak').textContent = `${longestStreak} days`;
-  document.getElementById('recordBestWeekly').textContent = `${bestWeeklyRate}%`;
-  document.getElementById('recordBestSavings').textContent = `₹${bestMonthlySavings.toFixed(0)}`;
 }
 
 // Helper functions
@@ -4602,167 +4329,6 @@ function getDateRange(startDate, endDate) {
   }
   
   return dates;
-}
-
-function calculateDisciplineScore(startDate, endDate) {
-  const dates = getDateRange(startDate, endDate);
-  const values = dates.map(date => getDayStats(date).total ? getDayStats(date).percentage : null);
-  const validValues = values.filter(v => v !== null);
-  
-  let score = 0;
-  
-  if (validValues.length > 0) {
-    const avgCompletion = validValues.reduce((a, b) => a + b, 0) / validValues.length;
-    const activeDaysRatio = validValues.length / dates.length;
-    const badDays = validValues.filter(v => v < 50).length;
-    const consistencyFactor = Math.max(0, 1 - (badDays / validValues.length));
-    
-    score = Math.round(
-      (avgCompletion * 0.5) +
-      (consistencyFactor * 100 * 0.3) +
-      (activeDaysRatio * 100 * 0.2)
-    );
-  }
-  
-  return score;
-}
-
-function calculateBestStreak(startDate, endDate) {
-  const dates = getDateRange(startDate, endDate);
-  let longestStreak = 0;
-  let currentStreak = 0;
-  
-  dates.forEach(date => {
-    const stats = getDayStats(date);
-    if (stats.total > 0 && stats.percentage >= 75) {
-      currentStreak++;
-      longestStreak = Math.max(longestStreak, currentStreak);
-    } else {
-      currentStreak = 0;
-    }
-  });
-  
-  return longestStreak;
-}
-
-function getPeriodTaskStats(startDate, endDate) {
-  const dates = getDateRange(startDate, endDate);
-  let completed = 0;
-  let total = 0;
-  
-  dates.forEach(date => {
-    const stats = getDayStats(date);
-    completed += stats.completed;
-    total += stats.total;
-  });
-  
-  return { completed, total };
-}
-
-function getPeriodExpenseStats(startDate, endDate) {
-  const periodTransactions = transactions.filter(t => t.date >= startDate && t.date <= endDate);
-  
-  const income = periodTransactions
-    .filter(t => t.transaction_type === 'income')
-    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  const expenses = periodTransactions
-    .filter(t => t.transaction_type === 'expense')
-    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  
-  return { income, expenses, savings: income - expenses };
-}
-
-function calculatePercentageChange(oldValue, newValue) {
-  if (oldValue === 0) return newValue > 0 ? 100 : 0;
-  return Math.round(((newValue - oldValue) / oldValue) * 100);
-}
-
-function updateGrowthMetric(elementId, change, suffix) {
-  const el = document.getElementById(elementId);
-  if (!el) return;
-  
-  el.textContent = change > 0 ? `+${change}%` : `${change}%`;
-  el.className = 'growth-change';
-  if (change > 0) el.classList.add('positive');
-  else if (change < 0) el.classList.add('negative');
-  else el.classList.add('neutral');
-}
-
-function calculateLongestStreak() {
-  const dates = [];
-  for (let i = 89; i >= 0; i--) {
-    const d = new Date();
-    d.setHours(12, 0, 0, 0);
-    d.setDate(d.getDate() - i);
-    dates.push(localDateString(d));
-  }
-  
-  let longestStreak = 0;
-  let currentStreak = 0;
-  
-  dates.forEach(date => {
-    const stats = getDayStats(date);
-    if (stats.total > 0 && stats.percentage >= 75) {
-      currentStreak++;
-      longestStreak = Math.max(longestStreak, currentStreak);
-    } else {
-      currentStreak = 0;
-    }
-  });
-  
-  return longestStreak;
-}
-
-function calculateBestWeeklyRate() {
-  const weeks = 12;
-  let bestRate = 0;
-  
-  for (let w = 0; w < weeks; w++) {
-    const weekDates = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setHours(12, 0, 0, 0);
-      d.setDate(d.getDate() - (w * 7) - i);
-      weekDates.push(localDateString(d));
-    }
-    
-    let total = 0;
-    let completed = 0;
-    weekDates.forEach(date => {
-      const stats = getDayStats(date);
-      total += stats.total;
-      completed += stats.completed;
-    });
-    
-    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
-    bestRate = Math.max(bestRate, rate);
-  }
-  
-  return bestRate;
-}
-
-function calculateBestMonthlySavings() {
-  const months = 12;
-  let bestSavings = 0;
-  
-  for (let m = 0; m < months; m++) {
-    const start = new Date();
-    start.setHours(12, 0, 0, 0);
-    start.setDate(1);
-    start.setMonth(start.getMonth() - m);
-    
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + 1);
-    end.setDate(0);
-    
-    const startDate = localDateString(start);
-    const endDate = localDateString(end);
-    
-    const stats = getPeriodExpenseStats(startDate, endDate);
-    bestSavings = Math.max(bestSavings, stats.savings);
-  }
-  
-  return bestSavings;
 }
 
 function renderSimpleBarChart(containerId, data) {
@@ -4786,79 +4352,6 @@ function renderSimpleBarChart(containerId, data) {
       </div>
     `;
   }).join('');
-}
-
-function renderDisciplineTrendChart(dates) {
-  const svg = document.getElementById('disciplineTrendChart');
-  if (!svg) return;
-  
-  const values = dates.map(date => getDayStats(date).total ? getDayStats(date).percentage : null);
-  
-  const width = 640, height = 220, left = 45, right = 20, top = 30, bottom = 45;
-  const plotW = width - left - right, plotH = height - top - bottom;
-  const y = v => top + (100 - v) / 100 * plotH;
-  const x = i => left + (dates.length === 1 ? plotW / 2 : i / (dates.length - 1) * plotW);
-  
-  let svgMarkup = '';
-  
-  // Grid lines
-  [0, 50, 100].forEach(v => {
-    if (v > 0) {
-      svgMarkup += `<line class="gridline" x1="${left}" y1="${y(v)}" x2="${width - right}" y2="${y(v)}"></line>`;
-    }
-    svgMarkup += `<text x="${left - 10}" y="${y(v) + 4}" text-anchor="end" fill="#999" font-size="11">${v}%</text>`;
-  });
-  
-  // Create line path
-  const points = values.map((v, i) => v === null ? null : [x(i), y(v)]);
-  let linePath = '';
-  
-  if (points.some(p => p !== null)) {
-    points.forEach((p, i) => {
-      if (p !== null) {
-        if (linePath === '') {
-          linePath = `M ${p[0]} ${p[1]}`;
-        } else {
-          linePath += ` L ${p[0]} ${p[1]}`;
-        }
-      }
-    });
-    
-    svgMarkup += `<path d="${linePath}" class="chart-line" fill="none"></path>`;
-    
-    // Add points
-    points.forEach((p, i) => {
-      if (p) {
-        const value = values[i];
-        const color = value > 75 ? '#25D366' : value >= 50 ? '#ffc107' : '#dc3545';
-        svgMarkup += `<circle class="chart-point" cx="${p[0]}" cy="${p[1]}" r="6" fill="${color}" stroke="white" stroke-width="2"></circle>`;
-      }
-    });
-  }
-  
-  // Date labels
-  dates.forEach((date, i) => {
-    if (i % Math.ceil(dates.length / 6) === 0 || i === dates.length - 1) {
-      const label = new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      svgMarkup += `<text x="${x(i)}" y="${height - 15}" text-anchor="middle" fill="#999" font-size="11">${label}</text>`;
-    }
-  });
-  
-  // Gradient
-  svgMarkup += `
-    <defs>
-      <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" style="stop-color:#128C7E;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#128C7E;stop-opacity:0" />
-      </linearGradient>
-    </defs>
-  `;
-  
-  if (values.every(v => v === null)) {
-    svgMarkup += `<text class="empty-chart" x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#999" font-size="14">Complete tasks to see your discipline trend.</text>`;
-  }
-  
-  svg.innerHTML = svgMarkup;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
