@@ -1,0 +1,3 @@
+// Supabase Configuration
+const SUPABASE_URL = 'https://wrokesgsybfsiylrbvfj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indyb2tlc2dzeWJmc2l5bHJidmZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMTM5MDUsImV4cCI6MjEwOTg4OTkwNX0.Mkqed9geN3USxjCvYuZjPqbgdfbbFQNnUDxH3Szqa2g';

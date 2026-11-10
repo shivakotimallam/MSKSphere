@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#128C7E">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="MSKSphere - Your tasks. Your money. Your world. A personal productivity and finance application to plan tasks, track completion, build consistency, reflect on your days, and manage money.">
+  <meta name="keywords" content="productivity, task management, finance tracking, personal finance, daily planner, goal tracking, money management">
+  <meta name="author" content="MSKSphere">
+  <meta property="og:title" content="MSKSphere - Your tasks. Your money. Your world.">
+  <meta property="og:description" content="A personal productivity and finance application to plan tasks, track completion, build consistency, reflect on your days, and manage money.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="MSKSphere - Your tasks. Your money. Your world.">
+  <meta name="twitter:description" content="A personal productivity and finance application to plan tasks, track completion, build consistency, reflect on your days, and manage money.">
+  <link rel="manifest" href="manifest.json">
+  <title>MSKSphere</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <style>
+    /* Critical CSS for initial render */
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:linear-gradient(135deg,#128C7E 0%,#25D366 100%);min-height:100vh}
+    #appContainer{display:none}
+    #authScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .loading-indicator{display:flex;flex-direction:column;align-items:center;gap:16px}
+    .spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+  <link rel="preload" href="styles.min.css?v=8" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="styles.min.css?v=8"></noscript>
+</head>
+<body>
+
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-shapes">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="glow-orb"></div>
+      <div class="glow-orb"></div>
+    </div>
+    <div class="auth-card">
+      <div class="auth-quote"><p id="authQuote" class="quote-text">Discipline is choosing what you want most over what you want now.</p></div>
+      <div class="auth-brand"><h1>MSKSphere</h1><p>Your tasks. Your money. Your world.</p></div>
+      <div class="auth-tabs">
+        <button id="loginTab" class="auth-tab active" onclick="showAuthMode('login')">Login</button>
+        <button id="signupTab" class="auth-tab" onclick="showAuthMode('signup')">Sign Up</button>
+      </div>
+      <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
+        <h2>Welcome back</h2><p>Log in to continue tracking your progress.</p>
+        <div class="input-group">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" autocomplete="email" required placeholder="you@example.com">
+        </div>
+        <div class="input-group">
+          <label for="loginPassword">Password</label>
+          <div class="password-input-wrapper auth-password-wrapper"><input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Enter your password"><button type="button" class="toggle-password" onclick="togglePasswordVisibility('loginPassword', this)">⏿</button></div>
+        </div>
+        <button class="auth-submit" type="submit" id="loginSubmitBtn">Login</button>
+        <p class="auth-switch"><button type="button" onclick="handleForgotPassword()">Forgot password?</button><span class="divider">|</span>New here? <button type="button" onclick="showAuthMode('signup')">Create an account</button></p>
+      </form>
+      <form id="signupForm" class="auth-form" hidden onsubmit="handleSignup(event)">
+        <h2>Create your account</h2><p>Your tasks and progress are separated by account on this browser.</p>
+        <div class="input-group">
+          <label for="signupName">Full name</label>
+          <input id="signupName" type="text" autocomplete="name" required placeholder="Enter your full name">
+        </div>
+        <div class="input-group">
+          <label for="signupEmail">Email</label>
+          <input id="signupEmail" type="email" autocomplete="email" required placeholder="you@example.com">
+        </div>
+        <div class="input-group">
+          <label for="signupPassword">Password</label>
+          <div class="password-input-wrapper auth-password-wrapper"><input id="signupPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"><button type="button" class="toggle-password" onclick="togglePasswordVisibility('signupPassword', this)">⏿</button></div>
+          <div class="password-strength" id="passwordStrength"><div class="strength-bar"></div><span class="strength-text">Password strength</span></div>
+        </div>
+        <div class="input-group">
+          <label for="signupConfirmPassword">Confirm Password</label>
+          <div class="password-input-wrapper auth-password-wrapper"><input id="signupConfirmPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="Confirm your password"><button type="button" class="toggle-password" onclick="togglePasswordVisibility('signupConfirmPassword', this)">⏿</button></div>
+          <div class="password-match" id="passwordMatch"></div>
+        </div>
+        <button class="auth-submit" type="submit" id="signupSubmitBtn">Create Account</button>
+        <p class="auth-switch">Already have an account? <button type="button" onclick="showAuthMode('login')">Login</button></p>
+      </form>
+      <p id="authError" class="auth-error" hidden></p>
+      <p id="authSuccess" class="auth-success" hidden></p>
+    </div>
+  </section>
+  <div class="app-container" id="appContainer">
+    <button class="mobile-menu-toggle" id="mobileMenuToggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1 onclick="switchView('dashboard', document.querySelector('[data-view=\'dashboard\']'))" style="cursor:pointer">MSKSphere</h1>
+        <span id="headerEmoji" class="header-emoji" onclick="showMotivationPopup()" style="cursor:pointer; display:none">⭐</span>
+      </div>
+      <div id="motivationPopup" class="motivation-popup">
+        <div class="popup-content">
+          <span id="popupMessage" class="popup-message">You can do it!</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard', this)"><span class="nav-icon">📊</span>Dashboard</button>
+        <button class="nav-btn" data-view="tasks" onclick="switchView('tasks', this)"><span class="nav-icon">☑</span>Tasks</button>
+        <button class="nav-btn" data-view="calendar" onclick="switchView('calendar', this)"><span class="nav-icon">📅</span>Calendar</button>
+        <button class="nav-btn" data-view="templates" onclick="switchView('templates', this)"><span class="nav-icon">📋</span>Templates</button>
+        <button class="nav-btn" data-view="notes" onclick="switchView('notes', this)"><span class="nav-icon">📝</span>Notes</button>
+        <button class="nav-btn" data-view="analytics" onclick="switchView('analytics', this)"><span class="nav-icon">📈</span>Analytics</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="nav-btn" data-view="settings" onclick="switchView('settings', this)"><span class="nav-icon">⚙</span>Settings</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div id="loadingIndicator" class="loading-indicator" style="display:none;">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+      </div>
+      <div id="taskCelebration" class="task-celebration" style="display:none;">
+        <div class="celebration-content">
+          <span class="celebration-check">✓</span>
+          <span class="celebration-message" id="celebrationMessage">Great work!</span>
+        </div>
+      </div>
+      <header class="page-header">
+        <div><h2 id="viewTitle">Dashboard</h2><p id="viewSubtitle">Your daily progress at a glance.</p></div>
+        <div class="today-label" id="todayLabel"></div>
+      </header>
+
+      <section id="dashboardView" class="view-section active">
+        <div class="stats">
+          <div class="stat-box"><h3>Total Tasks</h3><p id="totalTasks">0</p></div>
+          <div class="stat-box"><h3>Completed</h3><p id="completedTasks">0</p></div>
+          <div class="stat-box"><h3>Consistency Streak</h3><p id="totalStreak">0</p></div>
+          <div class="stat-box clickable" onclick="openGoalsModal()"><h3>Long-term Goals</h3><p id="totalGoals">0</p></div>
+        </div>
+        <div class="progress-container">
+          <label>Today's Progress <strong id="progressText">0%</strong></label>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+        <div class="dashboard-grid">
+          <section class="panel">
+            <div class="panel-heading"><h3>Today's Tasks</h3><button class="text-btn" onclick="switchView('tasks', document.querySelector('[data-view=tasks]'))">View all</button></div>
+            <ul id="dashboardTaskList" class="task-list"></ul>
+          </section>
+          <section class="panel analytics-panel">
+            <div class="panel-heading"><div><h3>Consistency Analytics</h3><p class="analytics-subtitle">Your daily completion trend over the last 14 days</p></div></div>
+            <div class="consistency-stats-row">
+              <div class="consistency-stat"><span class="stat-label">Avg. Completion</span><span class="stat-value" id="avgCompletion">0%</span></div>
+              <div class="consistency-stat"><span class="stat-label">Best Streak</span><span class="stat-value" id="bestStreak">0 days</span></div>
+              <div class="consistency-stat"><span class="stat-label">Consistency Score</span><span class="stat-value" id="consistencyScore">0</span></div>
+            </div>
+            <div class="consistency-chart-container">
+              <div class="analytics-chart-wrap"><svg id="consistencyChart" class="consistency-chart" viewBox="0 0 640 220" role="img" aria-label="Daily task completion percentage chart"></svg></div>
+              <div class="legend"><span><i class="dot green"></i> Excellent (75%+)</span><span><i class="dot yellow"></i> Good (50-75%)</span><span><i class="dot red"></i> Needs Work (&lt;50%)</span></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tasksView" class="view-section">
+        <section class="panel">
+          <div class="panel-heading"><h3>My Tasks</h3><button onclick="openTaskModal()">+ Add New Task</button></div>
+          <div class="toolbar">
+            <input type="search" id="taskSearch" placeholder="Search tasks..." oninput="debouncedRenderTasks()">
+            <input type="date" id="taskDateFilter" onchange="renderTasks()">
+            <div class="filters">
+              <button class="filter-btn active" onclick="filterTasks('all', this)">All</button>
+              <button class="filter-btn" onclick="filterTasks('active', this)">Active</button>
+              <button class="filter-btn" onclick="filterTasks('completed', this)">Completed</button>
+            </div>
+          </div>
+          <ul id="taskList" class="task-list"></ul>
+        </section>
+      </section>
+
+      <section id="calendarView" class="view-section">
+        <section class="panel">
+          <div class="panel-heading calendar-heading">
+            <h3>Activity Calendar</h3>
+            <div class="month-controls"><button class="month-btn" onclick="changeMonth(-1)" aria-label="Previous month">‹</button><strong id="calendarMonth"></strong><button class="month-btn" onclick="changeMonth(1)" aria-label="Next month">›</button></div>
+          </div>
+          <div class="calendar-legend">
+            <span><i class="dot green"></i> Above 75%</span><span><i class="dot yellow"></i> 50%–75%</span><span><i class="dot red"></i> Below 50%</span><span><i class="dot neutral"></i> No activity</span><span><i class="dot goal-indicator"></i> Goal Due</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+        <div id="calendarGoalsBar" class="calendar-goals-bar"></div>
+        <section class="panel day-summary" id="daySummary">
+          <div class="panel-heading"><h3 id="summaryTitle">Select a date</h3><span id="summaryPercentage" class="percentage-pill">—</span></div>
+          <div id="summaryContent" class="summary-content">Choose any date on the calendar to view its task summary.</div>
+          <div id="summaryTaskList" class="summary-task-list"></div>
+          <div id="summaryNoteSection" class="summary-note-section" style="display:none;">
+            <label>Daily Note</label>
+            <div id="summaryNoteText" class="summary-note-text"></div>
+          </div>
+          <div id="summaryBestThingSection" class="summary-note-section" style="display:none;">
+            <label>Best Thing</label>
+            <div id="summaryBestThingText" class="summary-note-text"></div>
+          </div>
+          <div id="summaryBadThingSection" class="summary-note-section" style="display:none;">
+            <label>Thing to Change</label>
+            <div id="summaryBadThingText" class="summary-note-text"></div>
+          </div>
+          <button type="button" class="edit-note-btn" onclick="editNoteFromCalendar()" style="display:none;" id="editNoteBtn">Edit Note</button>
+        </section>
+      </section>
+
+      <section id="templatesView" class="view-section">
+        <section class="panel">
+          <div class="panel-heading"><h3>My Templates</h3><button onclick="openCreateTemplateModal()">+ Create Template</button></div>
+          <div id="templatesList" class="templates-grid"></div>
+        </section>
+      </section>
+
+      <section id="notesView" class="view-section">
+        <section class="panel">
+          <div class="panel-heading"><h3>Daily Notes & Money</h3></div>
+          <div class="notes-tabs">
+            <button class="notes-tab active" onclick="switchNotesTab('notes')" id="notesTabBtn">📝 Notes</button>
+            <button class="notes-tab" onclick="switchNotesTab('money')" id="moneyTabBtn">💰 Money</button>
+          </div>
+          
+          <!-- Notes Tab -->
+          <div id="notesTabContent" class="notes-tab-content">
+            <div class="notes-calendar-section">
+              <label for="notesDateSelect">Select Date</label>
+              <input type="date" id="notesDateSelect" onchange="loadNoteForDate()">
+            </div>
+            <div class="daily-note-section">
+              <label for="dailyNoteInput">Your Note</label>
+              <textarea id="dailyNoteInput" placeholder="Write about your progress, challenges, or achievements for this day..." rows="4"></textarea>
+            </div>
+            <div class="reflection-fields">
+              <div class="daily-note-section">
+                <label for="bestThingInput">One Best Thing</label>
+                <textarea id="bestThingInput" placeholder="What was the best thing that happened or what you did today?" rows="2"></textarea>
+              </div>
+              <div class="daily-note-section">
+                <label for="badThingInput">One Thing to Change</label>
+                <textarea id="badThingInput" placeholder="What didn't go well or what you want to avoid repeating?" rows="2"></textarea>
+              </div>
+            </div>
+            <button onclick="saveDailyNote()" class="save-note-btn">Save Note</button>
+          </div>
+          
+          <!-- Money Tab -->
+          <div id="moneyTabContent" class="notes-tab-content" style="display:none;">
+            <div class="money-calendar-section">
+              <label for="moneyDateSelect">Select Date</label>
+              <input type="date" id="moneyDateSelect" onchange="loadMoneyForDate()">
+            </div>
+            
+            <!-- Money Overview Cards -->
+            <div class="money-overview">
+              <div class="money-card">
+                <span class="money-card-label">Total Balance</span>
+                <span class="money-card-value" id="totalBalance">₹0.00</span>
+              </div>
+              <div class="money-card income">
+                <span class="money-card-label">Today's Income</span>
+                <span class="money-card-value" id="todayIncome">₹0.00</span>
+              </div>
+              <div class="money-card expense">
+                <span class="money-card-label">Today's Expenses</span>
+                <span class="money-card-value" id="todayExpenses">₹0.00</span>
+              </div>
+              <div class="money-card">
+                <span class="money-card-label">Net Savings</span>
+                <span class="money-card-value" id="todayNetSavings">₹0.00</span>
+              </div>
+              <div class="money-card lent">
+                <span class="money-card-label">Pending Money</span>
+                <span class="money-card-value" id="totalLentMoney">₹0.00</span>
+              </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="money-actions">
+              <button class="money-action-btn income-btn" onclick="openAddIncomeModal()">+ Add Income</button>
+              <button class="money-action-btn expense-btn" onclick="openAddExpenseModal()">+ Add Expense</button>
+              <button class="money-action-btn transfer-btn" onclick="openTransferModal()">↔ Transfer</button>
+              <button class="money-action-btn lend-btn" onclick="openLentMoneyModal()">💸 Pending Money</button>
+              <button class="money-action-btn account-btn" onclick="openAccountsModal()">Manage Accounts</button>
+            </div>
+            
+            <!-- Transaction History -->
+            <div class="transactions-section">
+              <div class="transactions-header">
+                <h4>Transaction History</h4>
+                <select id="transactionFilter" onchange="filterTransactions()">
+                  <option value="all">All Transactions</option>
+                  <option value="income">Income Only</option>
+                  <option value="expense">Expenses Only</option>
+                  <option value="transfer">Transfers Only</option>
+                  <option value="category-by-category">Filter by Category</option>
+                </select>
+                <select id="categoryFilter" onchange="filterTransactions()" style="display:none;">
+                  <option value="">All Categories</option>
+                  <option value="Milk">Milk</option>
+                  <option value="Peanut Butter">Peanut Butter</option>
+                  <option value="Eggs">Eggs</option>
+                  <option value="Biryani">Biryani</option>
+                  <option value="Online Shopping">Online Shopping</option>
+                  <option value="Recharge">Recharge</option>
+                  <option value="Study">Study</option>
+                  <option value="Fee">Fee</option>
+                  <option value="Food">Food</option>
+                  <option value="Travel">Travel</option>
+                  <option value="Shopping">Shopping</option>
+                  <option value="Bills">Bills</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Medicine">Medicine</option>
+                  <option value="Personal">Personal</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div id="transactionsList" class="transactions-list"></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="analyticsView" class="view-section">
+        <!-- Date Filter -->
+        <div class="analytics-filter">
+          <label>Period:</label>
+          <select id="analyticsPeriod" onchange="updateAnalytics()">
+            <option value="7">Last 7 Days</option>
+            <option value="30" selected>Last 30 Days</option>
+            <option value="90">Last 3 Months</option>
+            <option value="365">This Year</option>
+            <option value="custom">Custom Range</option>
+          </select>
+          <div id="customDateRange" style="display:none;">
+            <input type="date" id="analyticsStartDate">
+            <span>to</span>
+            <input type="date" id="analyticsEndDate">
+            <button onclick="updateAnalytics()">Apply</button>
+          </div>
+        </div>
+
+        <!-- Overview Cards -->
+        <div class="analytics-overview-grid">
+          <div class="overview-card task-card">
+            <span class="overview-icon">📊</span>
+            <div class="overview-content">
+              <span class="overview-label">Tasks Completed</span>
+              <span class="overview-value" id="overviewTasksCompleted">0</span>
+              <span class="overview-sub" id="overviewTaskPercentage">0%</span>
+            </div>
+          </div>
+          <div class="overview-card income-card">
+            <span class="overview-icon">💰</span>
+            <div class="overview-content">
+              <span class="overview-label">Total Income</span>
+              <span class="overview-value" id="overviewIncome">₹0</span>
+              <span class="overview-sub">This period</span>
+            </div>
+          </div>
+          <div class="overview-card expense-card">
+            <span class="overview-icon">💸</span>
+            <div class="overview-content">
+              <span class="overview-label">Total Expenses</span>
+              <span class="overview-value" id="overviewExpenses">₹0</span>
+              <span class="overview-sub">This period</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Analysis Section -->
+        <section class="panel analytics-section">
+          <div class="panel-heading"><h3>📊 Task Analysis</h3></div>
+          <div class="analytics-content">
+            <div class="analytics-stats-row">
+              <div class="analytics-stat-card">
+                <span class="stat-icon">✓</span>
+                <div class="stat-info">
+                  <span class="stat-label">Completed</span>
+                  <span class="stat-value" id="taskCompleted">0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card">
+                <span class="stat-icon">⏳</span>
+                <div class="stat-info">
+                  <span class="stat-label">Pending</span>
+                  <span class="stat-value" id="taskPending">0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card">
+                <span class="stat-icon">📈</span>
+                <div class="stat-info">
+                  <span class="stat-label">Completion %</span>
+                  <span class="stat-value" id="taskCompletionRate">0%</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card">
+                <span class="stat-icon">📊</span>
+                <div class="stat-info">
+                  <span class="stat-label">Avg/Day</span>
+                  <span class="stat-value" id="taskAvgPerDay">0</span>
+                </div>
+              </div>
+            </div>
+            <div class="chart-section">
+              <h4>Task Completion</h4>
+              <div id="taskCompletionChart" class="simple-bar-chart"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Expense Analysis Section -->
+        <section class="panel analytics-section">
+          <div class="panel-heading"><h3>💰 Expense Analysis</h3></div>
+          <div class="analytics-content">
+            <div class="analytics-stats-row">
+              <div class="analytics-stat-card income-card">
+                <span class="stat-icon">💰</span>
+                <div class="stat-info">
+                  <span class="stat-label">Total Income</span>
+                  <span class="stat-value income-text" id="expenseIncome">₹0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card expense-card">
+                <span class="stat-icon">💸</span>
+                <div class="stat-info">
+                  <span class="stat-label">Total Expenses</span>
+                  <span class="stat-value expense-text" id="expenseTotal">₹0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card savings-card">
+                <span class="stat-icon">💎</span>
+                <div class="stat-info">
+                  <span class="stat-label">Net Savings</span>
+                  <span class="stat-value" id="expenseSavings">₹0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card">
+                <span class="stat-icon">📊</span>
+                <div class="stat-info">
+                  <span class="stat-label">Avg Daily Spend</span>
+                  <span class="stat-value" id="expenseAvgDaily">₹0</span>
+                </div>
+              </div>
+            </div>
+            <div class="chart-section">
+              <h4>Top Spending Categories</h4>
+              <div id="categoryChart" class="simple-bar-chart"></div>
+            </div>
+          </div>
+        </section>
+
+      </section>
+
+      <section id="templateDetailView" class="view-section">
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <h3 id="templateDetailTitle">Template Name</h3>
+              <p id="templateDetailSubtitle">Manage your timetable tasks</p>
+            </div>
+            <div class="template-detail-actions">
+              <button onclick="openAddTemplateTaskModal()">+ Add Task</button>
+              <button onclick="openImportTemplateModal()">Import from Template</button>
+              <button onclick="openApplyTemplateModal()">Apply Template</button>
+              <button class="edit-btn" onclick="openEditTemplateModal()">Edit Template</button>
+              <button class="delete-btn" onclick="deleteCurrentTemplate()">Delete Template</button>
+              <button class="cancel-btn" onclick="switchView('templates', document.querySelector('[data-view=templates]'))">Back</button>
+            </div>
+          </div>
+          <div id="templateTasksList" class="template-tasks-list"></div>
+        </section>
+      </section>
+
+      <section id="settingsView" class="view-section">
+        <section class="panel settings-panel">
+          <div class="panel-heading"><h3>Profile Settings</h3></div>
+          <div class="profile-row"><span class="profile-label">Full name</span><strong id="profileName">Your name</strong></div>
+          <div class="profile-row"><span class="profile-label">Email address</span><strong id="profileEmail">your@email.com</strong></div>
+          <div class="profile-row"><span class="profile-label">Password</span><strong id="profilePassword">••••••••</strong></div>
+          <div class="settings-actions settings-button-row"><button onclick="openEmailModal()">Change Email</button><button onclick="openPasswordModal()">Change Password</button><button class="logout-btn" onclick="logout()">Log Out</button></div>
+        </section>
+        <section class="panel settings-panel" style="margin-top:20px">
+          <div class="panel-heading"><h3>Motivation Settings</h3></div>
+          <div class="form-group">
+            <label for="userEmoji">Your Emoji</label>
+            <input type="text" id="userEmoji" placeholder="e.g., 🚀, 💪, ⭐" maxlength="2" style="max-width:100px">
+          </div>
+          <div class="form-group">
+            <label for="userMessage">Your Motivational Message</label>
+            <input type="text" id="userMessage" placeholder="e.g., You can do it! Keep going!" maxlength="100">
+          </div>
+          <div class="settings-actions">
+            <button onclick="saveMotivationSettings()">Save Motivation Settings</button>
+          </div>
+        </section>
+        <div style="text-align:center; margin-top:30px; font-size:10px; color:#999;">Shivakoti Mallam</div>
+      </section>
+    </main>
+  </div>
+
+  <div id="taskModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2 id="taskModalTitle">Add New Task</h2><button class="close" onclick="closeTaskModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="modalTaskName">Task Name *</label><input type="text" id="modalTaskName" placeholder="Enter task name..."></div>
+        <div class="form-group"><label for="modalTaskPriority">Priority</label><select id="modalTaskPriority"><option value="high">High Priority</option><option value="medium" selected>Medium Priority</option><option value="low">Low Priority</option></select></div>
+        <div class="form-group"><label for="modalTaskRepetition">Repetition</label><select id="modalTaskRepetition" onchange="toggleCustomDays()"><option value="once">Once</option><option value="daily">Daily</option><option value="custom">Custom Days</option></select></div>
+        <div class="form-group"><label for="modalTaskDueDate">Repeat until (optional)</label><input type="date" id="modalTaskDueDate"><small class="field-help">Daily and Custom Days tasks stop appearing after this date. Leave empty for no end date.</small></div>
+        <div class="form-group" id="customDaysGroup" hidden><label>Select Days</label><div class="days-selector">
+          <label><input type="checkbox" value="Sunday"> Sun</label><label><input type="checkbox" value="Monday"> Mon</label><label><input type="checkbox" value="Tuesday"> Tue</label><label><input type="checkbox" value="Wednesday"> Wed</label><label><input type="checkbox" value="Thursday"> Thu</label><label><input type="checkbox" value="Friday"> Fri</label><label><input type="checkbox" value="Saturday"> Sat</label>
+        </div></div>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeTaskModal()">Cancel</button><button class="save-btn" onclick="saveTaskFromModal()">Save Task</button></div>
+    </div>
+  </div>
+
+  <div id="emailModal" class="modal">
+    <div class="modal-content compact-modal">
+      <div class="modal-header"><h2>Change Email</h2><button class="close" onclick="closeEmailModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="newEmail">New Email Address</label><input type="email" id="newEmail" autocomplete="email" required></div>
+        <div class="form-group"><label for="emailConfirmPassword">Confirm Password</label><input type="password" id="emailConfirmPassword" autocomplete="current-password" required></div>
+        
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeEmailModal()">Cancel</button><button class="save-btn" onclick="submitEmailChange()">Save Email</button></div>
+    </div>
+  </div>
+  <div id="passwordModal" class="modal">
+    <div class="modal-content compact-modal">
+      <div class="modal-header"><h2>Change Password</h2><button class="close" onclick="closePasswordModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="newPassword">New Password</label><input type="password" id="newPassword" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></div>
+        <div class="form-group"><label for="confirmPassword">Confirm New Password</label><input type="password" id="confirmPassword" autocomplete="new-password" minlength="8" required placeholder="Confirm your password"></div>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closePasswordModal()">Cancel</button><button class="save-btn" onclick="submitPasswordChange()">Save Password</button></div>
+    </div>
+  </div>
+  <div id="resetPasswordModal" class="modal">
+    <div class="modal-content compact-modal">
+      <div class="modal-header"><h2>Reset Password</h2><button class="close" onclick="closeResetPasswordModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="resetNewPassword">New Password</label><input type="password" id="resetNewPassword" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></div>
+        <div class="form-group"><label for="resetConfirmPassword">Confirm New Password</label><input type="password" id="resetConfirmPassword" autocomplete="new-password" minlength="8" required placeholder="Confirm your password"></div>
+        <p class="settings-note">Enter your new password. Make sure it's at least 8 characters long.</p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeResetPasswordModal()">Cancel</button><button class="save-btn" onclick="submitPasswordReset()">Reset Password</button></div>
+    </div>
+  </div>
+
+  <!-- Template Modals -->
+  <div id="createTemplateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Create Template</h2><button class="close" onclick="closeCreateTemplateModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="templateName">Template Name *</label><input type="text" id="templateName" placeholder="e.g., College Timetable"></div>
+        <div class="form-group"><label for="templateIcon">Icon *</label>
+          <div class="icon-picker" id="iconPicker">
+            <button type="button" class="icon-option" data-icon="📅" onclick="selectIcon('📅')">📅</button>
+            <button type="button" class="icon-option" data-icon="📚" onclick="selectIcon('📚')">📚</button>
+            <button type="button" class="icon-option" data-icon="🎓" onclick="selectIcon('🎓')">🎓</button>
+            <button type="button" class="icon-option" data-icon="💻" onclick="selectIcon('💻')">💻</button>
+            <button type="button" class="icon-option" data-icon="🏋️" onclick="selectIcon('🏋️')">🏋️</button>
+            <button type="button" class="icon-option" data-icon="💼" onclick="selectIcon('💼')">💼</button>
+            <button type="button" class="icon-option" data-icon="🎯" onclick="selectIcon('🎯')">🎯</button>
+            <button type="button" class="icon-option" data-icon="☕" onclick="selectIcon('☕')">☕</button>
+            <button type="button" class="icon-option" data-icon="🏠" onclick="selectIcon('🏠')">🏠</button>
+            <button type="button" class="icon-option" data-icon="🌙" onclick="selectIcon('🌙')">🌙</button>
+            <button type="button" class="icon-option" data-icon="🎵" onclick="selectIcon('🎵')">🎵</button>
+            <button type="button" class="icon-option" data-icon="✏️" onclick="selectIcon('✏️')">✏️</button>
+          </div>
+          <input type="hidden" id="selectedIcon" value="📅">
+        </div>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeCreateTemplateModal()">Cancel</button><button class="save-btn" onclick="saveTemplate()">Create Template</button></div>
+    </div>
+  </div>
+
+  <div id="editTemplateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Edit Template</h2><button class="close" onclick="closeEditTemplateModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="editTemplateName">Template Name *</label><input type="text" id="editTemplateName" placeholder="e.g., College Timetable"></div>
+        <div class="form-group"><label for="editTemplateIcon">Icon *</label>
+          <div class="icon-picker" id="editIconPicker">
+            <button type="button" class="icon-option" data-icon="📅" onclick="selectEditIcon('📅')">📅</button>
+            <button type="button" class="icon-option" data-icon="📚" onclick="selectEditIcon('📚')">📚</button>
+            <button type="button" class="icon-option" data-icon="🎓" onclick="selectEditIcon('🎓')">🎓</button>
+            <button type="button" class="icon-option" data-icon="💻" onclick="selectEditIcon('💻')">💻</button>
+            <button type="button" class="icon-option" data-icon="🏋️" onclick="selectEditIcon('🏋️')">🏋️</button>
+            <button type="button" class="icon-option" data-icon="💼" onclick="selectEditIcon('💼')">💼</button>
+            <button type="button" class="icon-option" data-icon="🎯" onclick="selectEditIcon('🎯')">🎯</button>
+            <button type="button" class="icon-option" data-icon="☕" onclick="selectEditIcon('☕')">☕</button>
+            <button type="button" class="icon-option" data-icon="🏠" onclick="selectEditIcon('🏠')">🏠</button>
+            <button type="button" class="icon-option" data-icon="🌙" onclick="selectEditIcon('🌙')">🌙</button>
+            <button type="button" class="icon-option" data-icon="🎵" onclick="selectEditIcon('🎵')">🎵</button>
+            <button type="button" class="icon-option" data-icon="✏️" onclick="selectEditIcon('✏️')">✏️</button>
+          </div>
+          <input type="hidden" id="editSelectedIcon" value="📅">
+        </div>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeEditTemplateModal()">Cancel</button><button class="save-btn" onclick="updateTemplate()">Save Changes</button></div>
+    </div>
+  </div>
+
+  <div id="addTemplateTaskModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2 id="templateTaskModalTitle">Add Task to Template</h2><button class="close" onclick="closeAddTemplateTaskModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="templateTaskName">Task Name *</label><input type="text" id="templateTaskName" placeholder="e.g., Study DBMS"></div>
+        <div class="form-group"><label for="templateTaskPriority">Priority</label>
+          <select id="templateTaskPriority">
+            <option value="high">High Priority</option>
+            <option value="medium" selected>Medium Priority</option>
+            <option value="low">Low Priority</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Start Time *</label>
+          <div class="time-picker-wrapper">
+            <input type="time" id="templateTaskStartTime" class="time-input">
+            <button type="button" class="time-picker-btn" onclick="openTimePicker('start')">🕐 Pick Time</button>
+          </div>
+        </div>
+        <div class="form-group"><label>End Time *</label>
+          <div class="time-picker-wrapper">
+            <input type="time" id="templateTaskEndTime" class="time-input">
+            <button type="button" class="time-picker-btn" onclick="openTimePicker('end')">🕐 Pick Time</button>
+          </div>
+        </div>
+        <div class="form-group"><label>Select Days *</label><div class="days-selector">
+          <label><input type="checkbox" value="Sunday"> Sun</label>
+          <label><input type="checkbox" value="Monday"> Mon</label>
+          <label><input type="checkbox" value="Tuesday"> Tue</label>
+          <label><input type="checkbox" value="Wednesday"> Wed</label>
+          <label><input type="checkbox" value="Thursday"> Thu</label>
+          <label><input type="checkbox" value="Friday"> Fri</label>
+          <label><input type="checkbox" value="Saturday"> Sat</label>
+        </div></div>
+        <p id="templateTaskError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeAddTemplateTaskModal()">Cancel</button><button class="save-btn" onclick="saveTemplateTask()">Save Task</button></div>
+    </div>
+  </div>
+
+  <!-- Circular Time Picker Modal -->
+  <div id="timePickerModal" class="modal">
+    <div class="modal-content time-picker-modal">
+      <div class="modal-header"><h2>Select Time</h2><button class="close" onclick="closeTimePicker()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="time-picker-container">
+          <div class="clock-face" id="clockFace">
+            <!-- Clock face will be generated by JS -->
+          </div>
+          <div class="time-display">
+            <span id="selectedHour">09</span>:<span id="selectedMinute">00</span>
+            <span id="selectedPeriod">AM</span>
+          </div>
+          <div class="time-picker-controls">
+            <button class="time-control-btn" onclick="togglePeriod()">AM/PM</button>
+            <button class="time-control-btn" onclick="setTimePickerMode('hour')">Hours</button>
+            <button class="time-control-btn" onclick="setTimePickerMode('minute')">Minutes</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeTimePicker()">Cancel</button><button class="save-btn" onclick="confirmTimeSelection()">Set Time</button></div>
+    </div>
+  </div>
+
+  <div id="applyTemplateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Apply Template to Dates</h2><button class="close" onclick="closeApplyTemplateModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="applyStartDate">Start Date *</label><input type="date" id="applyStartDate"></div>
+        <div class="form-group"><label for="applyEndDate">End Date *</label><input type="date" id="applyEndDate"></div>
+        <div class="form-group"><label for="applyRecurrenceType">Task Recurrence *</label>
+          <select id="applyRecurrenceType" onchange="toggleApplyRecurrenceOptions()">
+            <option value="once">One-time (specific dates only)</option>
+            <option value="daily">Daily (repeats every day)</option>
+            <option value="custom">Custom Days (repeats on selected days)</option>
+          </select>
+          <small class="field-help">One-time: Tasks only on selected dates. Daily: Tasks repeat daily. Custom: Tasks repeat on the template's selected days.</small>
+        </div>
+        <div class="form-group" id="applyRepeatUntilGroup" hidden><label for="applyRepeatUntil">Repeat until (optional)</label><input type="date" id="applyRepeatUntil"><small class="field-help">Tasks stop appearing after this date. Leave empty for no end date.</small></div>
+        <div id="applyTemplatePreview" class="apply-preview"></div>
+        <p id="applyTemplateError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeApplyTemplateModal()">Cancel</button><button class="save-btn" onclick="applyTemplate()">Apply Template</button></div>
+    </div>
+  </div>
+
+  <div id="importTemplateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Import Tasks from Template</h2><button class="close" onclick="closeImportTemplateModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="importTemplateSelect">Select Template *</label>
+          <select id="importTemplateSelect">
+            <option value="">-- Choose a template --</option>
+          </select>
+        </div>
+        <div id="importTemplatePreview" class="import-preview"></div>
+        <p id="importTemplateError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeImportTemplateModal()">Cancel</button><button class="save-btn" onclick="importTemplateTasks()">Import Tasks</button></div>
+    </div>
+  </div>
+
+  <div id="goalsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Long-term Goals</h2><button class="close" onclick="closeGoalsModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div id="goalFormContainer" hidden>
+          <div class="form-group"><label for="goalName">Goal Name *</label><input type="text" id="goalName" placeholder="e.g., Complete Certification"></div>
+          <div class="form-group"><label for="goalDeadline">Deadline *</label><input type="date" id="goalDeadline"></div>
+          <div class="form-group"><label for="goalDescription">Description (optional)</label><textarea id="goalDescription" rows="3" placeholder="Add details about your goal..."></textarea></div>
+          <p id="goalError" class="auth-error" hidden></p>
+        </div>
+        <div id="goalsList" class="goals-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="addGoalBtn" class="save-btn" onclick="showGoalForm()">+ Add Goal</button>
+        <button id="cancelGoalBtn" class="cancel-btn" onclick="hideGoalForm()" hidden>Cancel</button>
+        <button id="saveGoalBtn" class="save-btn" onclick="saveGoal()" hidden>Save Goal</button>
+        <button class="cancel-btn" onclick="closeGoalsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Income Modal -->
+  <div id="addIncomeModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Add Income</h2><button class="close" onclick="closeAddIncomeModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="incomeAmount">Amount (₹) *</label><input type="number" id="incomeAmount" step="0.01" min="0" required placeholder="0.00"></div>
+        <div class="form-group"><label for="incomeCategory">Category *</label>
+          <select id="incomeCategory" required>
+            <option value="">Select category</option>
+            <option value="Salary">Salary</option>
+            <option value="Pocket Money">Pocket Money</option>
+            <option value="Freelancing">Freelancing</option>
+            <option value="Business">Business</option>
+            <option value="Gift">Gift</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="incomeAccount">Account *</label><select id="incomeAccount" required></select></div>
+        <div class="form-group"><label for="incomeDate">Date *</label><input type="date" id="incomeDate" required></div>
+        <div class="form-group"><label for="incomeDescription">Description (Optional)</label><input type="text" id="incomeDescription" placeholder="Add details about this income"></div>
+        <p id="incomeError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeAddIncomeModal()">Cancel</button><button class="save-btn" onclick="saveIncome()">Save Income</button></div>
+    </div>
+  </div>
+
+  <!-- Add Expense Modal -->
+  <div id="addExpenseModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Add Expense</h2><button class="close" onclick="closeAddExpenseModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="expenseAmount">Amount (₹) *</label><input type="number" id="expenseAmount" step="0.01" min="0" required placeholder="0.00"></div>
+        <div class="form-group"><label for="expenseCategory">Category *</label>
+          <select id="expenseCategory" required onchange="handleCategoryChange()">
+            <option value="">Select category</option>
+            <option value="Milk">Milk</option>
+            <option value="Peanut Butter">Peanut Butter</option>
+            <option value="Eggs">Eggs</option>
+            <option value="Biryani">Biryani</option>
+            <option value="Online Shopping">Online Shopping</option>
+            <option value="Recharge">Recharge</option>
+            <option value="Study">Study</option>
+            <option value="Fee">Fee</option>
+            <option value="Food">Food</option>
+            <option value="Travel">Travel</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Bills">Bills</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Medicine">Medicine</option>
+            <option value="Personal">Personal</option>
+            <option value="Other">Other</option>
+            <option value="add_custom">+ Add Custom Category</option>
+          </select>
+          <div id="customCategoryContainer" class="custom-category-container" style="display:none;">
+            <input type="text" id="customCategory" placeholder="Enter new category name" class="custom-category-input">
+          </div>
+        </div>
+        <div class="form-group"><label for="expenseAccount">Paid From Account *</label><select id="expenseAccount" required></select></div>
+        <div class="form-group"><label for="expenseDate">Date *</label><input type="date" id="expenseDate" required></div>
+        <div class="form-group"><label for="expenseDescription">Description (Optional)</label><input type="text" id="expenseDescription" placeholder="Add details about this expense"></div>
+        <p id="expenseError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeAddExpenseModal()">Cancel</button><button class="save-btn" onclick="saveExpense()">Save Expense</button></div>
+    </div>
+  </div>
+
+  <!-- Transfer Modal -->
+  <div id="transferModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Transfer Money</h2><button class="close" onclick="closeTransferModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="transferAmount">Amount (₹) *</label><input type="number" id="transferAmount" step="0.01" min="0" required placeholder="0.00"></div>
+        <div class="form-group"><label for="transferFromAccount">From Account *</label><select id="transferFromAccount" required></select></div>
+        <div class="form-group"><label for="transferToAccount">To Account *</label><select id="transferToAccount" required></select></div>
+        <div class="form-group"><label for="transferDate">Date *</label><input type="date" id="transferDate" required></div>
+        <div class="form-group"><label for="transferDescription">Description (Optional)</label><input type="text" id="transferDescription" placeholder="Add details about this transfer"></div>
+        <p id="transferError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeTransferModal()">Cancel</button><button class="save-btn" onclick="saveTransfer()">Transfer</button></div>
+    </div>
+  </div>
+
+  <!-- Accounts Modal -->
+  <div id="accountsModal" class="modal">
+    <div class="modal-content accounts-modal-content">
+      <div class="modal-header"><h2>Manage Accounts</h2><button class="close" onclick="closeAccountsModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="add-account-section">
+          <h4>Add New Account</h4>
+          <div class="form-group"><label for="accountName">Account Name *</label><input type="text" id="accountName" required placeholder="e.g., Cash, Bank Account"></div>
+          <div class="form-group"><label for="accountType">Account Type *</label>
+            <select id="accountType" required>
+              <option value="">Select type</option>
+              <option value="Cash">Cash</option>
+              <option value="Bank Account">Bank Account</option>
+              <option value="Savings Account">Savings Account</option>
+              <option value="UPI/Wallet">UPI/Wallet</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group"><label for="accountOpeningBalance">Opening Balance (₹) *</label><input type="number" id="accountOpeningBalance" step="0.01" min="0" required placeholder="0.00"></div>
+          <button class="add-account-btn" onclick="saveAccount()">Add Account</button>
+          <p id="accountError" class="auth-error" hidden></p>
+        </div>
+        <div class="accounts-list-section">
+          <h4>Your Accounts</h4>
+          <div id="accountsList" class="accounts-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeAccountsModal()">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Pending Money Modal -->
+  <div id="lendMoneyModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Pending Money</h2><button class="close" onclick="closeLentMoneyModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="lend-money-tabs">
+          <button class="lend-tab active" onclick="switchLentTab('receive')" id="receiveTabBtn">Money to Receive</button>
+          <button class="lend-tab" onclick="switchLentTab('give')" id="giveTabBtn">Money to Give</button>
+        </div>
+        
+        <!-- Money to Receive Tab -->
+        <div id="receiveTabContent" class="lend-tab-content">
+          <h4>Money You Lent (Should Return to You)</h4>
+          <div class="form-group"><label for="lentPersonName">Person Name *</label><input type="text" id="lentPersonName" required placeholder="Who did you lend to?"></div>
+          <div class="form-group"><label for="lentAmount">Amount (₹) *</label><input type="number" id="lentAmount" step="0.01" min="0" required placeholder="0.00"></div>
+          <div class="form-group"><label for="lentDate">Date Lent *</label><input type="date" id="lentDate" required></div>
+          <div class="form-group"><label for="lentDueDate">Expected Return Date</label><input type="date" id="lentDueDate" placeholder="When do you expect it back?"></div>
+          <div class="form-group"><label for="lentDescription">Notes (Optional)</label><input type="text" id="lentDescription" placeholder="Any additional notes"></div>
+          <button class="record-btn" onclick="saveLentMoney('receive')">Record Pending Money</button>
+          <p id="lendError" class="auth-error" hidden></p>
+          <div id="lentMoneyList" class="lent-money-list"></div>
+        </div>
+        
+        <!-- Money to Give Tab -->
+        <div id="giveTabContent" class="lend-tab-content" style="display:none;">
+          <h4>Money You Owe (Should Give to Others)</h4>
+          <div class="form-group"><label for="owedPersonName">Person Name *</label><input type="text" id="owedPersonName" required placeholder="Who do you owe?"></div>
+          <div class="form-group"><label for="owedAmount">Amount (₹) *</label><input type="number" id="owedAmount" step="0.01" min="0" required placeholder="0.00"></div>
+          <div class="form-group"><label for="owedDate">Date Owed *</label><input type="date" id="owedDate" required></div>
+          <div class="form-group"><label for="owedDueDate">Expected Payment Date</label><input type="date" id="owedDueDate" placeholder="When will you pay?"></div>
+          <div class="form-group"><label for="owedDescription">Notes (Optional)</label><input type="text" id="owedDescription" placeholder="Any additional notes"></div>
+          <button class="record-btn" onclick="saveLentMoney('give')">Record Pending Money</button>
+          <p id="owedError" class="auth-error" hidden></p>
+          <div id="owedMoneyList" class="lent-money-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeLentMoneyModal()">Close</button></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+  <script src="js/config.js?v=5" defer></script>
+  <script src="script.min.js?v=8" defer></script>
+</body>
+</html>
