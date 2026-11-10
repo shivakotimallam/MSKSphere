@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow access to config files (though they should be protected by .gitignore)
+Disallow: /js/config.js
+Disallow: /.env
+
+# Disallow access to admin/internal pages if any exist in future
+# Disallow: /admin
