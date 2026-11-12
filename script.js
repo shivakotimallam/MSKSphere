@@ -3325,6 +3325,8 @@ function openAccountsModal() {
     renderAccountsList();
     const addSection = document.querySelector('.add-account-section');
     if (addSection) addSection.style.display = accounts.length >= 5 ? 'none' : '';
+    const secretCb = document.getElementById('accountSecret');
+    if (secretCb) { secretCb.disabled = accounts.some(a => a.is_secret); secretCb.parentElement.style.opacity = secretCb.disabled ? '0.5' : '1'; }
     const errorEl = document.getElementById('accountError');
     if (errorEl) errorEl.hidden = true;
   }
