@@ -16,6 +16,7 @@
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="MSKSphere - Your tasks. Your money. Your world.">
   <meta name="twitter:description" content="A personal productivity and finance application to plan tasks, track completion, build consistency, reflect on your days, and manage money.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23128C7E' width='100' height='100' rx='20'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3EMS%3C/text%3E%3C/svg%3E">
   <link rel="manifest" href="manifest.json">
   <title>MSKSphere</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -29,8 +30,8 @@
     .spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
   </style>
-  <link rel="preload" href="styles.min.css?v=8" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="styles.min.css?v=8"></noscript>
+  <link rel="preload" href="styles.min.css?v=39" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="styles.min.css?v=39"></noscript>
 </head>
 <body>
 
@@ -93,10 +94,15 @@
     </div>
   </section>
   <div class="app-container" id="appContainer">
-    <button class="mobile-menu-toggle" id="mobileMenuToggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    <header class="mobile-topbar">
+      <button class="mobile-menu-toggle" id="mobileMenuToggle" onclick="toggleMobileMenu()" aria-label="Open menu">☰</button>
+      <div class="mobile-topbar-brand">MSKSphere</div>
+      <div class="mobile-topbar-spacer"></div>
+    </header>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <h1 onclick="switchView('dashboard', document.querySelector('[data-view=\'dashboard\']'))" style="cursor:pointer">MSKSphere</h1>
+        <button class="sidebar-close" onclick="closeMobileMenu()" aria-label="Close menu">✕</button>
         <span id="headerEmoji" class="header-emoji" onclick="showMotivationPopup()" style="cursor:pointer; display:none">⭐</span>
       </div>
       <div id="motivationPopup" class="motivation-popup">
@@ -108,6 +114,7 @@
         <button class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard', this)"><span class="nav-icon">📊</span>Dashboard</button>
         <button class="nav-btn" data-view="tasks" onclick="switchView('tasks', this)"><span class="nav-icon">☑</span>Tasks</button>
         <button class="nav-btn" data-view="calendar" onclick="switchView('calendar', this)"><span class="nav-icon">📅</span>Calendar</button>
+        <button class="nav-btn" data-view="exams" onclick="switchView('exams', this)"><span class="nav-icon">🎓</span>Study</button>
         <button class="nav-btn" data-view="templates" onclick="switchView('templates', this)"><span class="nav-icon">📋</span>Templates</button>
         <button class="nav-btn" data-view="notes" onclick="switchView('notes', this)"><span class="nav-icon">📝</span>Notes</button>
         <button class="nav-btn" data-view="analytics" onclick="switchView('analytics', this)"><span class="nav-icon">📈</span>Analytics</button>
@@ -116,6 +123,7 @@
         <button class="nav-btn" data-view="settings" onclick="switchView('settings', this)"><span class="nav-icon">⚙</span>Settings</button>
       </div>
     </aside>
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
 
     <main class="main-content">
       <div id="loadingIndicator" class="loading-indicator" style="display:none;">
@@ -141,7 +149,7 @@
           <div class="stat-box clickable" onclick="openGoalsModal()"><h3>Long-term Goals</h3><p id="totalGoals">0</p></div>
         </div>
         <div class="progress-container">
-          <label>Today's Progress <strong id="progressText">0%</strong></label>
+          <div class="progress-label">Today's Progress <strong id="progressText">0%</strong></div>
           <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
         </div>
         <div class="dashboard-grid">
@@ -197,19 +205,94 @@
           <div id="summaryContent" class="summary-content">Choose any date on the calendar to view its task summary.</div>
           <div id="summaryTaskList" class="summary-task-list"></div>
           <div id="summaryNoteSection" class="summary-note-section" style="display:none;">
-            <label>Daily Note</label>
+            <span class="summary-label">Daily Note</span>
             <div id="summaryNoteText" class="summary-note-text"></div>
           </div>
           <div id="summaryBestThingSection" class="summary-note-section" style="display:none;">
-            <label>Best Thing</label>
+            <span class="summary-label">Best Thing</span>
             <div id="summaryBestThingText" class="summary-note-text"></div>
           </div>
           <div id="summaryBadThingSection" class="summary-note-section" style="display:none;">
-            <label>Thing to Change</label>
+            <span class="summary-label">Thing to Change</span>
             <div id="summaryBadThingText" class="summary-note-text"></div>
           </div>
           <button type="button" class="edit-note-btn" onclick="editNoteFromCalendar()" style="display:none;" id="editNoteBtn">Edit Note</button>
         </section>
+      </section>
+
+      <section id="examsView" class="view-section">
+        <div class="study-tabs">
+          <button class="study-tab" id="studyTabExams" onclick="switchStudyTab('exams')">Exams</button>
+          <button class="study-tab active" id="studyTabSubjects" onclick="switchStudyTab('subjects')">Study</button>
+          <button class="back-btn study-back-btn" id="studyBackBtn" onclick="closeSubjectDetail()" hidden>← Back to Study</button>
+        </div>
+
+        <div id="studyExamsSection" hidden>
+        <section class="panel">
+          <div class="panel-heading"><h3>My Exams</h3><button onclick="openExamModal()">+ Add Exam</button></div>
+          <div class="toolbar exams-toolbar">
+            <div class="filters">
+              <button class="filter-btn active" onclick="filterExams('all', this)">All</button>
+              <button class="filter-btn" onclick="filterExams('upcoming', this)">Upcoming</button>
+              <button class="filter-btn" onclick="filterExams('today', this)">Today</button>
+              <button class="filter-btn" onclick="filterExams('completed', this)">Completed</button>
+            </div>
+            <select id="examSort" class="exam-sort" onchange="renderExams()">
+              <option value="nearest" selected>Nearest Exam First</option>
+              <option value="latest">Latest Exam First</option>
+              <option value="name">Exam Name (A–Z)</option>
+            </select>
+          </div>
+          <div id="examsList" class="exams-list"></div>
+        </section>
+        </div>
+
+        <div id="studySubjectsSection">
+          <section class="panel study-overview">
+            <div class="study-overview-top">
+              <div>
+                <h3 class="study-overview-title">Study Overview</h3>
+                <p class="study-overview-sub">Small sessions add up — you've got this.</p>
+              </div>
+              <div class="study-overview-pct"><span id="subjectOverallProgress">0%</span><small>complete</small></div>
+            </div>
+            <div class="subject-progress-bar study-overview-bar"><div class="subject-progress-fill" id="subjectProgressFill" style="width:0%"></div></div>
+            <div class="study-overview-stats">
+              <span><strong id="subjectTotalCount">0</strong> subjects</span>
+              <span><strong id="subjectTopicTotal">0h</strong> planned</span>
+              <span><strong id="subjectTopicDone">0h</strong> studied</span>
+              <span><strong id="subjectTopicLeft">0h</strong> left</span>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><h3>My Subjects</h3><button onclick="openSubjectModal()">+ Add Subject</button></div>
+            <div class="toolbar study-toolbar">
+              <input type="search" id="subjectSearch" placeholder="Search subjects..." oninput="renderSubjects()">
+              <select id="subjectCategoryFilter" class="study-filter-select" onchange="renderSubjects()">
+                <option value="all">All Categories</option>
+                <option value="Academic">Academic</option>
+                <option value="Technical Skills">Technical Skills</option>
+                <option value="Programming">Programming</option>
+                <option value="Professional Skills">Professional Skills</option>
+                <option value="Personal Learning">Personal Learning</option>
+                <option value="Other">Other</option>
+              </select>
+              <select id="subjectSort" class="study-filter-select" onchange="renderSubjects()">
+                <option value="recent" selected>Recently Added</option>
+                <option value="name">Subject Name (A–Z)</option>
+                <option value="progress-high">Highest Progress</option>
+                <option value="progress-low">Lowest Progress</option>
+                <option value="priority">Highest Priority</option>
+                <option value="target-date">Target Completion Date</option>
+              </select>
+            </div>
+            <div id="subjectsList" class="subjects-list"></div>
+          </section>
+        </div>
+
+        <div id="subjectDetailPanel" hidden>
+          <div id="subjectDetailContent"></div>
+        </div>
       </section>
 
       <section id="templatesView" class="view-section">
@@ -332,6 +415,7 @@
         <div class="analytics-filter">
           <label>Period:</label>
           <select id="analyticsPeriod" onchange="updateAnalytics()">
+            <option value="today">Today</option>
             <option value="7">Last 7 Days</option>
             <option value="30" selected>Last 30 Days</option>
             <option value="90">Last 3 Months</option>
@@ -456,6 +540,47 @@
           </div>
         </section>
 
+        <!-- Study Progress Section -->
+        <section class="panel analytics-section">
+          <div class="panel-heading"><h3>📚 Study Progress</h3></div>
+          <div class="analytics-content">
+            <div class="analytics-stats-row">
+              <div class="analytics-stat-card">
+                <span class="stat-icon">📖</span>
+                <div class="stat-info">
+                  <span class="stat-label">Total Subjects</span>
+                  <span class="stat-value" id="studyTotalSubjects">0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card">
+                <span class="stat-icon">✅</span>
+                <div class="stat-info">
+                  <span class="stat-label">Sessions Logged</span>
+                  <span class="stat-value" id="studyTopicsCompleted">0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card income-card">
+                <span class="stat-icon">⏱️</span>
+                <div class="stat-info">
+                  <span class="stat-label">Hours Studied</span>
+                  <span class="stat-value income-text" id="studyHoursStudied">0h</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card savings-card">
+                <span class="stat-icon">📈</span>
+                <div class="stat-info">
+                  <span class="stat-label">Study Completion</span>
+                  <span class="stat-value" id="studyCompletionPct">0%</span>
+                </div>
+              </div>
+            </div>
+            <div class="chart-section">
+              <h4>Hours Studied by Subject</h4>
+              <div id="studyHoursChart" class="simple-bar-chart"></div>
+            </div>
+          </div>
+        </section>
+
       </section>
 
       <section id="templateDetailView" class="view-section">
@@ -500,7 +625,7 @@
             <button onclick="saveMotivationSettings()">Save Motivation Settings</button>
           </div>
         </section>
-        <div style="text-align:center; margin-top:30px; font-size:10px; color:#999;">Shivakoti Mallam</div>
+        <div class="settings-footer">Need help? Contact us at <a href="mailto:msk3official@gmail.com">msk3official@gmail.com</a></div>
       </section>
     </main>
   </div>
@@ -513,7 +638,7 @@
         <div class="form-group"><label for="modalTaskPriority">Priority</label><select id="modalTaskPriority"><option value="high">High Priority</option><option value="medium" selected>Medium Priority</option><option value="low">Low Priority</option></select></div>
         <div class="form-group"><label for="modalTaskRepetition">Repetition</label><select id="modalTaskRepetition" onchange="toggleCustomDays()"><option value="once">Once</option><option value="daily">Daily</option><option value="custom">Custom Days</option></select></div>
         <div class="form-group"><label for="modalTaskDueDate">Repeat until (optional)</label><input type="date" id="modalTaskDueDate"><small class="field-help">Daily and Custom Days tasks stop appearing after this date. Leave empty for no end date.</small></div>
-        <div class="form-group" id="customDaysGroup" hidden><label>Select Days</label><div class="days-selector">
+        <div class="form-group" id="customDaysGroup" hidden><span class="form-label">Select Days</span><div class="days-selector">
           <label><input type="checkbox" value="Sunday"> Sun</label><label><input type="checkbox" value="Monday"> Mon</label><label><input type="checkbox" value="Tuesday"> Tue</label><label><input type="checkbox" value="Wednesday"> Wed</label><label><input type="checkbox" value="Thursday"> Thu</label><label><input type="checkbox" value="Friday"> Fri</label><label><input type="checkbox" value="Saturday"> Sat</label>
         </div></div>
       </div>
@@ -554,13 +679,146 @@
     </div>
   </div>
 
+  <!-- Subject Modal -->
+  <div id="subjectModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2 id="subjectModalTitle">Add Subject</h2><button class="close" onclick="closeSubjectModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="subjectName">Subject Name *</label><input type="text" id="subjectName" placeholder="e.g., Data Structures"></div>
+        <div class="form-group"><label for="subjectCategory">Category *</label>
+          <select id="subjectCategory">
+            <option value="">Select category</option>
+            <option value="Academic">Academic</option>
+            <option value="Technical Skills">Technical Skills</option>
+            <option value="Programming">Programming</option>
+            <option value="Professional Skills">Professional Skills</option>
+            <option value="Personal Learning">Personal Learning</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="subjectDescription">Description</label><textarea id="subjectDescription" rows="2" placeholder="What is this subject about?"></textarea></div>
+        <div class="form-group"><label for="subjectGoal">Learning Goal</label><input type="text" id="subjectGoal" placeholder="e.g., Master React for interviews"></div>
+        <div class="form-group exam-time-row">
+          <div><label for="subjectTargetDate">Target Completion Date</label><input type="date" id="subjectTargetDate"></div>
+          <div><label for="subjectPriority">Priority</label>
+            <select id="subjectPriority">
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label for="subjectHours">Total Estimated Study Hours *</label><input type="number" id="subjectHours" min="0.5" step="0.5" placeholder="e.g., 40"></div>
+        <p id="subjectError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeSubjectModal()">Cancel</button><button class="save-btn" onclick="saveSubject()">Save Subject</button></div>
+    </div>
+  </div>
+
+  <!-- Unit Modal -->
+  <div id="unitModal" class="modal">
+    <div class="modal-content compact-modal">
+      <div class="modal-header"><h2 id="unitModalTitle">Add Unit</h2><button class="close" onclick="closeUnitModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="unitName">Unit Name *</label><input type="text" id="unitName" placeholder="e.g., Unit 1 – Introduction"></div>
+        <div class="form-group"><label for="unitDescription">Unit Description</label><textarea id="unitDescription" rows="2" placeholder="Optional description"></textarea></div>
+        <p id="unitError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeUnitModal()">Cancel</button><button class="save-btn" onclick="saveUnit()">Save Unit</button></div>
+    </div>
+  </div>
+
+  <!-- Topic Modal -->
+  <div id="topicModal" class="modal">
+    <div class="modal-content compact-modal">
+      <div class="modal-header"><h2 id="topicModalTitle">Add Topic</h2><button class="close" onclick="closeTopicModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="topicName">Topic Name *</label><input type="text" id="topicName" placeholder="e.g., Variables and Data Types"></div>
+        <div class="form-group"><label for="topicDescription">Topic Description</label><textarea id="topicDescription" rows="2" placeholder="Optional description"></textarea></div>
+        <div class="form-group exam-time-row">
+          <div><label for="topicPriority">Priority</label>
+            <select id="topicPriority">
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div><label for="topicTime">Estimated Study Time</label><input type="text" id="topicTime" placeholder="e.g., 2 hours"></div>
+        </div>
+        <div class="form-group"><label for="topicNotes">Personal Notes</label><textarea id="topicNotes" rows="2" placeholder="Optional notes"></textarea></div>
+        <p id="topicError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeTopicModal()">Cancel</button><button class="save-btn" onclick="saveTopic()">Save Topic</button></div>
+    </div>
+  </div>
+
+  <!-- Study Session Modal -->
+  <div id="studySessionModal" class="modal">
+    <div class="modal-content compact-modal">
+      <div class="modal-header"><h2 id="studySessionModalTitle">Log Study Time</h2><button class="close" onclick="closeStudySessionModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group exam-time-row">
+          <div><label for="sessionHours">Hours</label><input type="number" id="sessionHours" min="0" step="0.25" placeholder="e.g., 2.5"></div>
+          <div><label for="sessionMinutes">Minutes</label><input type="number" id="sessionMinutes" min="0" max="59" step="1" placeholder="e.g., 30"></div>
+        </div>
+        <div class="form-group"><label for="sessionDate">Study Date</label><input type="date" id="sessionDate"></div>
+        <div class="form-group"><label for="sessionDescription">What I Learned / Description</label><input type="text" id="sessionDescription" placeholder="e.g., Function declaration, arrow functions"></div>
+        <div class="form-group"><label for="sessionNotes">Personal Notes</label><textarea id="sessionNotes" rows="2" placeholder="Optional notes"></textarea></div>
+        <p id="sessionError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeStudySessionModal()">Cancel</button><button class="save-btn" onclick="saveStudySession()">Save Session</button></div>
+    </div>
+  </div>
+
+  <!-- Link Exam Modal -->
+  <div id="linkExamModal" class="modal">
+    <div class="modal-content compact-modal">
+      <div class="modal-header"><h2>Link Existing Exam</h2><button class="close" onclick="closeLinkExamModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="linkExamSelect">Select Exam</label><select id="linkExamSelect"></select></div>
+        <p id="linkExamError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeLinkExamModal()">Cancel</button><button class="save-btn" onclick="linkSelectedExam()">Link Exam</button></div>
+    </div>
+  </div>
+
+  <!-- Exam Modal -->
+  <div id="examModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h2 id="examModalTitle">Add Exam</h2><button class="close" onclick="closeExamModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label for="examName">Exam Name *</label><input type="text" id="examName" placeholder="e.g., Mathematics Mid-I"></div>
+        <div class="form-group"><label for="examDate">Exam Date *</label><input type="date" id="examDate"></div>
+        <div class="form-group exam-time-row">
+          <div><label for="examStartTime">Start Time *</label><input type="time" id="examStartTime"></div>
+          <div><label for="examEndTime">End Time</label><input type="time" id="examEndTime"></div>
+        </div>
+        <div class="form-group"><label for="examType">Exam Type</label>
+          <select id="examType">
+            <option value="">Select type</option>
+            <option value="Mid-I">Mid-I</option>
+            <option value="Mid-II">Mid-II</option>
+            <option value="Internals (Lab)">Internals (Lab)</option>
+            <option value="Externals (Lab)">Externals (Lab)</option>
+            <option value="Semester">Semester</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="examSubject">Select Subject</label><select id="examSubject"><option value="">None / Not Linked</option></select></div>
+        <div class="form-group"><label for="examNotes">Notes</label><textarea id="examNotes" rows="3" placeholder="Any additional details about this exam..."></textarea></div>
+        <p id="examError" class="auth-error" hidden></p>
+      </div>
+      <div class="modal-footer"><button class="cancel-btn" onclick="closeExamModal()">Cancel</button><button class="save-btn" onclick="saveExam()">Save Exam</button></div>
+    </div>
+  </div>
+
   <!-- Template Modals -->
   <div id="createTemplateModal" class="modal">
     <div class="modal-content">
       <div class="modal-header"><h2>Create Template</h2><button class="close" onclick="closeCreateTemplateModal()" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="form-group"><label for="templateName">Template Name *</label><input type="text" id="templateName" placeholder="e.g., College Timetable"></div>
-        <div class="form-group"><label for="templateIcon">Icon *</label>
+        <div class="form-group"><span class="form-label">Icon *</span>
           <div class="icon-picker" id="iconPicker">
             <button type="button" class="icon-option" data-icon="📅" onclick="selectIcon('📅')">📅</button>
             <button type="button" class="icon-option" data-icon="📚" onclick="selectIcon('📚')">📚</button>
@@ -587,7 +845,7 @@
       <div class="modal-header"><h2>Edit Template</h2><button class="close" onclick="closeEditTemplateModal()" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="form-group"><label for="editTemplateName">Template Name *</label><input type="text" id="editTemplateName" placeholder="e.g., College Timetable"></div>
-        <div class="form-group"><label for="editTemplateIcon">Icon *</label>
+        <div class="form-group"><span class="form-label">Icon *</span>
           <div class="icon-picker" id="editIconPicker">
             <button type="button" class="icon-option" data-icon="📅" onclick="selectEditIcon('📅')">📅</button>
             <button type="button" class="icon-option" data-icon="📚" onclick="selectEditIcon('📚')">📚</button>
@@ -621,19 +879,19 @@
             <option value="low">Low Priority</option>
           </select>
         </div>
-        <div class="form-group"><label>Start Time *</label>
+        <div class="form-group"><span class="form-label">Start Time *</span>
           <div class="time-picker-wrapper">
             <input type="time" id="templateTaskStartTime" class="time-input">
             <button type="button" class="time-picker-btn" onclick="openTimePicker('start')">🕐 Pick Time</button>
           </div>
         </div>
-        <div class="form-group"><label>End Time *</label>
+        <div class="form-group"><span class="form-label">End Time *</span>
           <div class="time-picker-wrapper">
             <input type="time" id="templateTaskEndTime" class="time-input">
             <button type="button" class="time-picker-btn" onclick="openTimePicker('end')">🕐 Pick Time</button>
           </div>
         </div>
-        <div class="form-group"><label>Select Days *</label><div class="days-selector">
+        <div class="form-group"><span class="form-label">Select Days *</span><div class="days-selector">
           <label><input type="checkbox" value="Sunday"> Sun</label>
           <label><input type="checkbox" value="Monday"> Mon</label>
           <label><input type="checkbox" value="Tuesday"> Tue</label>
@@ -886,7 +1144,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+  <div id="toastContainer" class="toast-container"></div>
   <script src="js/config.js?v=5" defer></script>
-  <script src="script.min.js?v=8" defer></script>
+  <script src="script.min.js?v=45" defer></script>
 </body>
 </html>

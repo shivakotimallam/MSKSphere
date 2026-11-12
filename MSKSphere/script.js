@@ -15,13 +15,13 @@ if ('performance' in window) {
 
 if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_ANON_KEY === 'undefined') {
   console.error('Supabase config not loaded! Check js/config.js');
-  alert('Error: Supabase configuration not loaded. Please ensure js/config.js exists and is being loaded.');
+  showToast('Error: Supabase configuration not loaded. Please ensure js/config.js exists and is being loaded.');
 } else {
   try {
     window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch (error) {
     console.error('Failed to initialize Supabase:', error);
-    alert('Error: Failed to initialize Supabase client. ' + error.message);
+    showToast('Error: Failed to initialize Supabase client. ' + error.message);
   }
 }
 
@@ -47,6 +47,20 @@ let accounts = [];
 let transactions = [];
 let editingTransactionId = null;
 let lentMoney = [];
+let exams = [];
+let examFilter = 'all';
+let editingExamId = null;
+let subjects = [];
+let subjectUnits = [];
+let subjectTopics = [];
+let editingSubjectId = null;
+let editingUnitId = null;
+let editingTopicId = null;
+let currentSubjectId = null;
+let linkExamSubjectId = null;
+let studySessions = [];
+let editingSessionId = null;
+let sessionSubjectId = null;
 
 // Time picker state
 let timePickerTarget = null; // 'start' or 'end'
@@ -62,16 +76,28 @@ function localDateString(date = new Date()) {
 
 function toggleMobileMenu() {
   const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('mobileOverlay');
   if (sidebar) {
-    sidebar.classList.toggle('open');
+    const isOpen = sidebar.classList.toggle('open');
+    if (overlay) {
+      overlay.classList.toggle('show', isOpen);
+    }
+    document.body.classList.toggle('menu-open', isOpen);
+    document.documentElement.classList.toggle('menu-open', isOpen);
   }
 }
 
 function closeMobileMenu() {
   const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('mobileOverlay');
   if (sidebar) {
     sidebar.classList.remove('open');
   }
+  if (overlay) {
+    overlay.classList.remove('show');
+  }
+  document.body.classList.remove('menu-open');
+  document.documentElement.classList.remove('menu-open');
 }
 
 // Debounce function for performance optimization
@@ -460,6 +486,49 @@ async function loadUserData() {
     lentMoney = [];
   }
 
+  // Load exams (with error handling for table that may not exist yet)
+  try {
+    const { data: examsData } = await window.supabase.from('exams').select('*').eq('user_id', user.id).order('exam_date', { ascending: true });
+    exams = examsData || [];
+  } catch (error) {
+    console.log('Exams table may not exist yet:', error.message);
+    exams = [];
+  }
+
+  // Load study subjects, units and topics (tables may not exist yet)
+  try {
+    const { data: subjectsData } = await window.supabase.from('subjects').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+    subjects = subjectsData || [];
+  } catch (error) {
+    console.log('Subjects table may not exist yet:', error.message);
+    subjects = [];
+    showToast('Study data could not be loaded. Please check that migration_study.sql was run in Supabase.', 'error');
+  }
+  try {
+    const { data: unitsData } = await window.supabase.from('subject_units').select('*').eq('user_id', user.id).order('display_order', { ascending: true });
+    subjectUnits = unitsData || [];
+  } catch (error) {
+    console.log('Subject units table may not exist yet:', error.message);
+    subjectUnits = [];
+    showToast('Study data could not be loaded. Please check that migration_study.sql was run in Supabase.', 'error');
+  }
+  try {
+    const { data: topicsData } = await window.supabase.from('subject_topics').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
+    subjectTopics = topicsData || [];
+  } catch (error) {
+    console.log('Subject topics table may not exist yet:', error.message);
+    subjectTopics = [];
+    showToast('Study data could not be loaded. Please check that migration_study.sql was run in Supabase.', 'error');
+  }
+  try {
+    const { data: sessionsData } = await window.supabase.from('study_sessions').select('*').eq('user_id', user.id).order('session_date', { ascending: false });
+    studySessions = sessionsData || [];
+  } catch (error) {
+    console.log('Study sessions table may not exist yet:', error.message);
+    studySessions = [];
+    showToast('Study time tracking needs the study_sessions table. Please run migration_study_sessions.sql in Supabase.', 'error');
+  }
+
   // Hide loading indicator after essential data is loaded
   if (loadingIndicator) loadingIndicator.style.display = 'none';
 
@@ -575,10 +644,14 @@ function getDayStats(dateString) {
   const dayTasks = getDayTasks(dateString);
   const total = dayTasks.length;
   const completed = dayTasks.filter(t => t.completed).length;
+  const pending = total - completed;
+  const overdue = dayTasks.filter(t => !t.completed && t.due_date && t.due_date < dateString).length;
   return {
     tasks: dayTasks,
     total,
     completed,
+    pending,
+    overdue,
     percentage: total ? Math.round(completed / total * 100) : 0
   };
 }
@@ -884,8 +957,8 @@ async function saveTaskFromModal() {
   const dueDate = document.getElementById('modalTaskDueDate').value || null;
   const customDays = [...document.querySelectorAll('.days-selector input:checked')].map(c => c.value);
 
-  if (!text) return alert('Please enter a task name.');
-  if (recurrence === 'custom' && !customDays.length) return alert('Please select at least one day.');
+  if (!text) return showToast('Please enter a task name.');
+  if (recurrence === 'custom' && !customDays.length) return showToast('Please select at least one day.');
 
   const saveBtn = document.querySelector('#taskModal .save-btn');
   saveBtn.disabled = true;
@@ -958,7 +1031,7 @@ async function saveTaskFromModal() {
     renderCalendar();
     closeTaskModal();
   } catch (error) {
-    alert('Failed to save task: ' + error.message);
+    showToast('Failed to save task: ' + error.message);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Save Task';
@@ -1019,7 +1092,7 @@ async function toggleTask(taskId, dateString) {
     if (selectedDate === dateString) {
       renderDaySummary(dateString);
     }
-    alert('Failed to update task: ' + error.message);
+    showToast('Failed to update task: ' + error.message);
   }
 }
 
@@ -1068,7 +1141,7 @@ async function deleteTask(taskId) {
     updateStats();
     renderCalendar();
   } catch (error) {
-    alert('Failed to delete task: ' + error.message);
+    showToast('Failed to delete task: ' + error.message);
   }
 }
 
@@ -1099,6 +1172,8 @@ function switchView(view, button) {
     renderNotes();
   } else if (view === 'analytics') {
     updateAnalytics();
+  } else if (view === 'exams') {
+    renderSubjects();
   } else if (view === 'goals') {
     renderGoals();
   } else if (view === 'settings') {
@@ -1112,6 +1187,7 @@ function switchView(view, button) {
     templates: ['Templates', 'Create and manage reusable timetable templates.'],
     notes: ['Notes', 'Daily reflections and expense tracking.'],
     analytics: ['Analytics', 'Comprehensive personal performance dashboard.'],
+    exams: ['Study', 'Track your upcoming exams and countdowns.'],
     settings: ['Settings', 'Manage your profile and account settings.']
   };
 
@@ -1364,7 +1440,7 @@ async function saveDailyNote() {
     }, 1500);
   } catch (error) {
     console.error('Failed to save note:', error);
-    alert('Failed to save note: ' + error.message);
+    showToast('Failed to save note: ' + error.message);
     saveBtn.textContent = 'Save Note';
     saveBtn.disabled = false;
   }
@@ -1435,8 +1511,8 @@ async function submitEmailChange() {
   const newEmail = document.getElementById('newEmail').value.trim().toLowerCase();
   const password = document.getElementById('emailConfirmPassword').value;
 
-  if (!newEmail || !newEmail.includes('@')) return alert('Enter a valid email address.');
-  if (!password) return alert('Please enter your current password for verification.');
+  if (!newEmail || !newEmail.includes('@')) return showToast('Enter a valid email address.');
+  if (!password) return showToast('Please enter your current password for verification.');
 
   const saveBtn = document.querySelector('#emailModal .save-btn');
   saveBtn.disabled = true;
@@ -1458,12 +1534,12 @@ async function submitEmailChange() {
 
     if (error) throw error;
 
-    alert('Email updated! Please check your new email for verification.');
+    showToast('Email updated! Please check your new email for verification.');
     closeEmailModal();
     await loadUserData();
     renderProfile();
   } catch (error) {
-    alert(error.message || 'Failed to update email.');
+    showToast(error.message || 'Failed to update email.');
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Save Email';
@@ -1490,13 +1566,13 @@ async function submitPasswordReset() {
   const confirmPassword = document.getElementById('resetConfirmPassword').value;
 
   if (!newPassword || !confirmPassword) {
-    return alert('Please fill in all password fields.');
+    return showToast('Please fill in all password fields.');
   }
   if (newPassword.length < 8) {
-    return alert('New password must contain at least 8 characters.');
+    return showToast('New password must contain at least 8 characters.');
   }
   if (newPassword !== confirmPassword) {
-    return alert('New password and confirmation do not match.');
+    return showToast('New password and confirmation do not match.');
   }
 
   const saveBtn = document.querySelector('#resetPasswordModal .save-btn');
@@ -1510,12 +1586,12 @@ async function submitPasswordReset() {
 
     if (error) throw error;
 
-    alert('Password reset successfully! You can now log in with your new password.');
+    showToast('Password reset successfully! You can now log in with your new password.');
     closeResetPasswordModal();
     clearAuthMessages();
     showAuthMode('login');
   } catch (error) {
-    alert(error.message || 'Failed to reset password. Please try again.');
+    showToast(error.message || 'Failed to reset password. Please try again.');
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Reset Password';
@@ -1526,9 +1602,9 @@ async function submitPasswordChange() {
   const next = document.getElementById('newPassword').value;
   const confirmValue = document.getElementById('confirmPassword').value;
 
-  if (!next || !confirmValue) return alert('Please fill in all password fields.');
-  if (next.length < 8) return alert('New password must contain at least 8 characters.');
-  if (next !== confirmValue) return alert('New password and confirmation do not match.');
+  if (!next || !confirmValue) return showToast('Please fill in all password fields.');
+  if (next.length < 8) return showToast('New password must contain at least 8 characters.');
+  if (next !== confirmValue) return showToast('New password and confirmation do not match.');
 
   const saveBtn = document.querySelector('#passwordModal .save-btn');
   saveBtn.disabled = true;
@@ -1542,10 +1618,10 @@ async function submitPasswordChange() {
 
     if (error) throw error;
 
-    alert('Password updated successfully!');
+    showToast('Password updated successfully!');
     closePasswordModal();
   } catch (error) {
-    alert(error.message || 'Failed to update password.');
+    showToast(error.message || 'Failed to update password.');
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Save Password';
@@ -1750,7 +1826,7 @@ async function saveTemplate() {
   const name = document.getElementById('templateName').value.trim();
   const icon = document.getElementById('selectedIcon').value;
 
-  if (!name) return alert('Please enter a template name.');
+  if (!name) return showToast('Please enter a template name.');
 
   const saveBtn = document.querySelector('#createTemplateModal .save-btn');
   saveBtn.disabled = true;
@@ -1773,7 +1849,7 @@ async function saveTemplate() {
     renderTemplates();
     closeCreateTemplateModal();
   } catch (error) {
-    alert('Failed to create template: ' + error.message);
+    showToast('Failed to create template: ' + error.message);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Create Template';
@@ -1807,7 +1883,7 @@ async function updateTemplate() {
   const name = document.getElementById('editTemplateName').value.trim();
   const icon = document.getElementById('editSelectedIcon').value;
 
-  if (!name) return alert('Please enter a template name.');
+  if (!name) return showToast('Please enter a template name.');
 
   const saveBtn = document.querySelector('#editTemplateModal .save-btn');
   saveBtn.disabled = true;
@@ -1834,7 +1910,7 @@ async function updateTemplate() {
     renderTemplates();
     closeEditTemplateModal();
   } catch (error) {
-    alert('Failed to update template: ' + error.message);
+    showToast('Failed to update template: ' + error.message);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Save Changes';
@@ -1886,7 +1962,7 @@ async function deleteCurrentTemplate() {
     switchView('templates', document.querySelector('[data-view=templates]'));
     renderTemplates();
   } catch (error) {
-    alert('Failed to delete template: ' + error.message);
+    showToast('Failed to delete template: ' + error.message);
   }
 }
 
@@ -1933,10 +2009,10 @@ async function saveTemplateTask() {
   const endTime = document.getElementById('templateTaskEndTime').value;
   const selectedDays = [...document.querySelectorAll('#addTemplateTaskModal .days-selector input:checked')].map(c => c.value);
 
-  if (!taskName) return alert('Please enter a task name.');
-  if (!startTime) return alert('Please select a start time.');
-  if (!endTime) return alert('Please select an end time.');
-  if (!selectedDays.length) return alert('Please select at least one day.');
+  if (!taskName) return showToast('Please enter a task name.');
+  if (!startTime) return showToast('Please select a start time.');
+  if (!endTime) return showToast('Please select an end time.');
+  if (!selectedDays.length) return showToast('Please select at least one day.');
 
   // Validate time range
   if (startTime >= endTime) {
@@ -2011,7 +2087,7 @@ async function saveTemplateTask() {
     renderTemplates();
     closeAddTemplateTaskModal();
   } catch (error) {
-    alert('Failed to save task: ' + error.message);
+    showToast('Failed to save task: ' + error.message);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Save Task';
@@ -2033,7 +2109,7 @@ async function deleteTemplateTask(taskId) {
     renderTemplateTasks();
     renderTemplates();
   } catch (error) {
-    alert('Failed to delete task: ' + error.message);
+    showToast('Failed to delete task: ' + error.message);
   }
 }
 
@@ -2137,13 +2213,13 @@ async function importTemplateTasks() {
   if (!currentTemplate) return;
 
   const sourceTemplateId = document.getElementById('importTemplateSelect').value;
-  if (!sourceTemplateId) return alert('Please select a template to import from.');
+  if (!sourceTemplateId) return showToast('Please select a template to import from.');
 
   const sourceTemplate = templates.find(t => t.id === sourceTemplateId);
   if (!sourceTemplate) return;
 
   const sourceTasks = templateTasks.filter(tt => tt.template_id === sourceTemplateId);
-  if (!sourceTasks.length) return alert('The selected template has no tasks to import.');
+  if (!sourceTasks.length) return showToast('The selected template has no tasks to import.');
 
   const saveBtn = document.querySelector('#importTemplateModal .save-btn');
   saveBtn.disabled = true;
@@ -2212,12 +2288,12 @@ async function importTemplateTasks() {
     closeImportTemplateModal();
 
     if (skippedCount > 0) {
-      alert(`Import complete! ${importedCount} tasks imported. ${skippedCount} tasks were skipped due to time overlaps.`);
+      showToast(`Import complete! ${importedCount} tasks imported. ${skippedCount} tasks were skipped due to time overlaps.`);
     } else {
-      alert(`Import complete! ${importedCount} tasks imported successfully.`);
+      showToast(`Import complete! ${importedCount} tasks imported successfully.`);
     }
   } catch (error) {
-    alert('Failed to import tasks: ' + error.message);
+    showToast('Failed to import tasks: ' + error.message);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Import Tasks';
@@ -2317,11 +2393,11 @@ async function applyTemplate() {
   const recurrenceType = document.getElementById('applyRecurrenceType').value;
   const repeatUntil = document.getElementById('applyRepeatUntil').value || null;
 
-  if (!startDate || !endDate) return alert('Please select start and end dates.');
-  if (startDate > endDate) return alert('Start date must be before or equal to end date.');
+  if (!startDate || !endDate) return showToast('Please select start and end dates.');
+  if (startDate > endDate) return showToast('Start date must be before or equal to end date.');
 
   const templateTasksList = templateTasks.filter(tt => tt.template_id === currentTemplate.id);
-  if (!templateTasksList.length) return alert('This template has no tasks to apply.');
+  if (!templateTasksList.length) return showToast('This template has no tasks to apply.');
 
   const saveBtn = document.querySelector('#applyTemplateModal .save-btn');
   saveBtn.disabled = true;
@@ -2505,7 +2581,7 @@ async function applyTemplate() {
         }
       });
       conflictMessage += '\nPlease resolve these conflicts and try again.';
-      alert(conflictMessage);
+      showToast(conflictMessage);
       return;
     }
 
@@ -2634,9 +2710,9 @@ async function applyTemplate() {
     renderCalendar();
     closeApplyTemplateModal();
 
-    alert(`Template applied! ${tasksCreated} tasks created successfully.`);
+    showToast(`Template applied! ${tasksCreated} tasks created successfully.`);
   } catch (error) {
-    alert('Failed to apply template: ' + error.message);
+    showToast('Failed to apply template: ' + error.message);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Apply Template';
@@ -2786,8 +2862,8 @@ async function saveGoal() {
   const deadline = document.getElementById('goalDeadline').value;
   const description = document.getElementById('goalDescription').value.trim();
 
-  if (!name) return alert('Please enter a goal name.');
-  if (!deadline) return alert('Please select a deadline.');
+  if (!name) return showToast('Please enter a goal name.');
+  if (!deadline) return showToast('Please select a deadline.');
 
   const saveBtn = document.querySelector('#goalsModal .save-btn');
   saveBtn.disabled = true;
@@ -2836,7 +2912,7 @@ async function saveGoal() {
     document.getElementById('goalDescription').value = '';
     document.getElementById('goalName').focus();
   } catch (error) {
-    alert('Failed to save goal: ' + error.message);
+    showToast('Failed to save goal: ' + error.message);
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Add Goal';
@@ -2875,7 +2951,7 @@ async function toggleGoal(goalId) {
     renderCalendar();
   } catch (error) {
     console.error('Failed to update goal:', error);
-    alert('Failed to update goal: ' + error.message);
+    showToast('Failed to update goal: ' + error.message);
   }
 }
 
@@ -2921,7 +2997,7 @@ async function deleteGoal(goalId) {
     updateStats();
     renderCalendar();
   } catch (error) {
-    alert('Failed to delete goal: ' + error.message);
+    showToast('Failed to delete goal: ' + error.message);
   }
 }
 
@@ -2956,15 +3032,15 @@ async function saveMotivationSettings() {
     headerEmoji.textContent = emoji;
     headerEmoji.style.display = 'inline-block';
 
-    alert('Motivation settings saved!');
+    showToast('Motivation settings saved!');
   } else {
-    alert('Please enter both emoji and message');
+    showToast('Please enter both emoji and message');
   }
 }
 
 function showMotivationPopup() {
   if (!userEmoji || !userMessage) {
-    alert('Please set your emoji and message in Settings first');
+    showToast('Please set your emoji and message in Settings first');
     return;
   }
 
@@ -3366,7 +3442,7 @@ async function deleteAccount(accountId) {
     
   } catch (error) {
     console.error('Error deleting account:', error);
-    alert('Failed to delete account. Please try again.');
+    showToast('Failed to delete account. Please try again.');
   }
 }
 
@@ -3889,7 +3965,7 @@ async function deleteTransaction(transactionId) {
     
   } catch (error) {
     console.error('Error deleting transaction:', error);
-    alert('Failed to delete transaction. Please try again.');
+    showToast('Failed to delete transaction. Please try again.');
   }
 }
 
@@ -4164,7 +4240,7 @@ async function markAsCompleted(id) {
     
   } catch (error) {
     console.error('Error marking as completed:', error);
-    alert('Failed to update. Please try again.');
+    showToast('Failed to update. Please try again.');
   }
 }
 
@@ -4182,7 +4258,7 @@ async function deletePendingMoney(id) {
     
   } catch (error) {
     console.error('Error deleting pending money:', error);
-    alert('Failed to delete. Please try again.');
+    showToast('Failed to delete. Please try again.');
   }
 }
 
@@ -4206,6 +4282,8 @@ function updateAnalytics() {
     startDate = document.getElementById('analyticsStartDate').value;
     endDate = document.getElementById('analyticsEndDate').value;
     if (!startDate || !endDate) return;
+  } else if (period === 'today') {
+    startDate = endDate;
   } else {
     const days = parseInt(period);
     startDate = new Date(today);
@@ -4217,6 +4295,7 @@ function updateAnalytics() {
   updateOverviewCards(startDate, endDate);
   updateTaskAnalysis(startDate, endDate);
   updateExpenseAnalysis(startDate, endDate);
+  updateStudyAnalysis(startDate, endDate);
 }
 
 function updateOverviewCards(startDate, endDate) {
@@ -4308,10 +4387,11 @@ function updateExpenseAnalysis(startDate, endDate) {
   document.getElementById('expenseSavings').textContent = `₹${netSavings.toFixed(0)}`;
   document.getElementById('expenseAvgDaily').textContent = `₹${avgDailySpend}`;
 
-  const topCategories = sortedCategories.slice(0, 5).map(([cat, amt]) => ({
+  const barPalette = ['#128C7E', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1'];
+  const topCategories = sortedCategories.slice(0, 8).map(([cat, amt], i) => ({
     label: cat,
     value: amt,
-    color: '#128C7E'
+    color: barPalette[i % barPalette.length]
   }));
   
   renderSimpleBarChart('categoryChart', topCategories);
@@ -4408,3 +4488,944 @@ document.addEventListener('DOMContentLoaded', async () => {
     showAuthMode('login');
   }
 });
+
+// ============================================================
+// Exams page functions
+// ============================================================
+
+function examDayNumber(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).getTime();
+}
+
+function examTomorrowString() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return localDateString(tomorrow);
+}
+
+function examStatus(exam) {
+  const todayStr = localDateString();
+  if (exam.exam_date < todayStr) return 'completed';
+  if (exam.exam_date === todayStr) return 'today';
+  if (exam.exam_date === examTomorrowString()) return 'tomorrow';
+  return 'upcoming';
+}
+
+function examDaysLeft(exam) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((examDayNumber(exam.exam_date) - today.getTime()) / 86400000);
+}
+
+function examCountdownLabel(exam) {
+  const status = examStatus(exam);
+  if (status === 'completed') return 'Completed';
+  if (status === 'today') return 'Today';
+  if (status === 'tomorrow') return 'Tomorrow';
+  return `${examDaysLeft(exam)} days left`;
+}
+
+function updateExamStats() {
+  if (!document.getElementById('examTotalCount')) return;
+  const todayStr = localDateString();
+  document.getElementById('examTotalCount').textContent = exams.length;
+  document.getElementById('examUpcomingCount').textContent = exams.filter(e => e.exam_date > todayStr).length;
+  document.getElementById('examTodayCount').textContent = exams.filter(e => e.exam_date === todayStr).length;
+  document.getElementById('examCompletedCount').textContent = exams.filter(e => e.exam_date < todayStr).length;
+}
+
+function filterExams(filter, btn) {
+  examFilter = filter;
+  document.querySelectorAll('#examsView .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderExams();
+}
+
+function renderExams() {
+  updateExamStats();
+  const container = document.getElementById('examsList');
+  if (!container) return;
+
+  if (!exams.length) {
+    container.innerHTML = `
+      <div class="exam-empty">
+        <span class="empty-icon">📝</span>
+        <h3>No exams scheduled yet!</h3>
+        <p>Add your upcoming exams and stay prepared.</p>
+        <button class="exam-empty-btn" onclick="openExamModal()">Add Your First Exam</button>
+      </div>`;
+    return;
+  }
+
+  const todayStr = localDateString();
+  const sortBy = (document.getElementById('examSort') || {}).value || 'nearest';
+
+  const items = exams.filter(e => {
+    if (examFilter === 'all') return true;
+    const status = examStatus(e);
+    if (examFilter === 'upcoming') return status === 'upcoming' || status === 'tomorrow';
+    return status === examFilter;
+  });
+
+  items.sort((a, b) => {
+    if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+    const aDone = a.exam_date < todayStr;
+    const bDone = b.exam_date < todayStr;
+    if (sortBy === 'latest') {
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      if (a.exam_date === b.exam_date) return (b.start_time || '').localeCompare(a.start_time || '');
+      return b.exam_date.localeCompare(a.exam_date);
+    }
+    // nearest: upcoming soonest first, completed most-recent first, completed always last
+    if (aDone !== bDone) return aDone ? 1 : -1;
+    if (aDone && bDone) return b.exam_date.localeCompare(a.exam_date);
+    if (a.exam_date === b.exam_date) return (a.start_time || '').localeCompare(b.start_time || '');
+    return a.exam_date.localeCompare(b.exam_date);
+  });
+
+  if (!items.length) {
+    container.innerHTML = '<div class="exam-empty"><p>No exams in this category.</p></div>';
+    return;
+  }
+
+  container.innerHTML = items.map(exam => {
+    const status = examStatus(exam);
+    const [y, mo, d] = exam.exam_date.split('-').map(Number);
+    const dateStr = new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = exam.end_time ? `${exam.start_time} – ${exam.end_time}` : exam.start_time;
+    const typeBadge = exam.exam_type ? `<span>🏷️ ${escapeHtml(exam.exam_type)}</span>` : '';
+    const linkedSubject = exam.subject_id ? subjects.find(s => s.id === exam.subject_id) : null;
+    const subjectBadge = linkedSubject ? `<span class="linked-exams-badge">🎓 ${escapeHtml(linkedSubject.name)}</span>` : '';
+    const subjectClick = linkedSubject ? ` onclick="openSubjectDetailFromExam('${linkedSubject.id}')" style="cursor:pointer"` : '';
+    return `
+      <div class="exam-card ${status === 'today' ? 'is-today' : ''} ${status === 'completed' ? 'is-completed' : ''}">
+        <div class="exam-card-top">
+          <div>
+            <div class="exam-name">${escapeHtml(exam.name || 'Untitled Exam')}</div>
+            ${linkedSubject ? `<div class="exam-subject"${subjectClick}>${escapeHtml(linkedSubject.name)}</div>` : ''}
+          </div>
+          <span class="exam-countdown cd-${status}">${examCountdownLabel(exam)}</span>
+        </div>
+        <div class="exam-meta">
+          <span>📅 ${dateStr}</span>
+          <span>🕐 ${escapeHtml(timeStr)}</span>
+          ${typeBadge}
+          ${subjectBadge}
+        </div>
+        ${exam.notes ? `<div class="exam-notes">${escapeHtml(exam.notes)}</div>` : ''}
+        <div class="exam-actions">
+          <button class="exam-edit" onclick="openEditExamModal('${exam.id}')">Edit</button>
+          <button class="exam-delete" onclick="deleteExam('${exam.id}')">Delete</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openExamModal() {
+  editingExamId = null;
+  populateExamSubjectOptions();
+  document.getElementById('examModalTitle').textContent = 'Add Exam';
+  document.getElementById('examName').value = '';
+  document.getElementById('examDate').value = '';
+  document.getElementById('examStartTime').value = '';
+  document.getElementById('examEndTime').value = '';
+  document.getElementById('examType').value = '';
+  document.getElementById('examSubject').value = '';
+  document.getElementById('examNotes').value = '';
+  document.getElementById('examError').hidden = true;
+  document.getElementById('examModal').classList.add('show');
+  document.getElementById('examName').focus();
+}
+
+function openEditExamModal(id) {
+  const exam = exams.find(e => e.id === id);
+  if (!exam) return;
+  editingExamId = id;
+  populateExamSubjectOptions();
+  document.getElementById('examModalTitle').textContent = 'Edit Exam';
+  document.getElementById('examName').value = exam.name || '';
+  document.getElementById('examDate').value = exam.exam_date || '';
+  document.getElementById('examStartTime').value = exam.start_time || '';
+  document.getElementById('examEndTime').value = exam.end_time || '';
+  document.getElementById('examType').value = exam.exam_type || '';
+  document.getElementById('examSubject').value = exam.subject_id || '';
+  document.getElementById('examNotes').value = exam.notes || '';
+  document.getElementById('examError').hidden = true;
+  document.getElementById('examModal').classList.add('show');
+  document.getElementById('examName').focus();
+}
+
+function closeExamModal() {
+  document.getElementById('examModal').classList.remove('show');
+}
+
+function showExamError(message) {
+  const el = document.getElementById('examError');
+  el.textContent = message;
+  el.hidden = false;
+}
+
+async function saveExam() {
+  const name = document.getElementById('examName').value.trim();
+  const examDate = document.getElementById('examDate').value;
+  const startTime = document.getElementById('examStartTime').value;
+  const endTime = document.getElementById('examEndTime').value;
+  const examType = document.getElementById('examType').value;
+  const notes = document.getElementById('examNotes').value.trim();
+
+  document.getElementById('examError').hidden = true;
+  if (!name) return showExamError('Please enter an exam name.');
+  if (!examDate || isNaN(new Date(examDate + 'T00:00:00').getTime())) return showExamError('Please select a valid exam date.');
+  if (!startTime) return showExamError('Please select a start time.');
+  if (endTime && endTime <= startTime) return showExamError('End time must be later than the start time.');
+
+  const saveBtn = document.querySelector('#examModal .save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  try {
+    const payload = {
+      name,
+      exam_date: examDate,
+      start_time: startTime,
+      end_time: endTime || null,
+      exam_type: examType || null,
+      subject_id: document.getElementById('examSubject').value || null,
+      notes: notes || null
+    };
+
+    if (editingExamId !== null) {
+      const { data, error } = await window.supabase
+        .from('exams')
+        .update(payload)
+        .eq('id', editingExamId)
+        .eq('user_id', currentUser.id)
+        .select()
+        .single();
+      if (error) throw error;
+      const idx = exams.findIndex(e => e.id === editingExamId);
+      if (idx !== -1) exams[idx] = data;
+    } else {
+      const { data, error } = await window.supabase
+        .from('exams')
+        .insert({ user_id: currentUser.id, ...payload })
+        .select()
+        .single();
+      if (error) throw error;
+      exams.push(data);
+    }
+
+    renderExams();
+    closeExamModal();
+  } catch (error) {
+    showExamError('Failed to save exam: ' + error.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Exam';
+  }
+}
+
+async function deleteExam(id) {
+  if (!confirm('Delete this exam?')) return;
+  try {
+    const { error } = await window.supabase
+      .from('exams')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    exams = exams.filter(e => e.id !== id);
+    renderExams();
+  } catch (error) {
+    showToast('Failed to delete exam: ' + error.message);
+  }
+}
+
+// Refresh countdowns automatically while the Exams page is open
+setInterval(() => {
+  const examsView = document.getElementById('examsView');
+  if (examsView && examsView.classList.contains('active')) {
+    renderExams();
+  }
+}, 60000);
+
+// ============================================================
+// Study page - Subjects, Units & Topics
+// ============================================================
+
+function switchStudyTab(tab) {
+  const isExams = tab === 'exams';
+  document.getElementById('studyTabExams').classList.toggle('active', isExams);
+  document.getElementById('studyTabSubjects').classList.toggle('active', !isExams);
+  document.getElementById('studyExamsSection').hidden = !isExams;
+  document.getElementById('studySubjectsSection').hidden = isExams;
+  document.getElementById('subjectDetailPanel').hidden = true;
+  document.getElementById('studyBackBtn').hidden = true;
+  if (isExams) renderExams(); else renderSubjects();
+}
+
+function subjectTopicsFor(subjectId) {
+  return subjectTopics.filter(t => t.subject_id === subjectId);
+}
+
+function subjectProgress(subjectId) {
+  const topics = subjectTopicsFor(subjectId);
+  if (!topics.length) return { total: 0, done: 0, inProgress: 0, pct: 0 };
+  const done = topics.filter(t => t.status === 'completed').length;
+  const inProgress = topics.filter(t => t.status === 'in_progress').length;
+  return { total: topics.length, done, inProgress, pct: Math.round(done / topics.length * 100) };
+}
+
+function subjectExams(subjectId) {
+  return exams.filter(e => e.subject_id === subjectId);
+}
+
+function populateExamSubjectOptions() {
+  const sel = document.getElementById('examSubject');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">None / Not Linked</option>' +
+    subjects.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  sel.value = current;
+}
+
+function openSubjectDetailFromExam(subjectId) {
+  switchStudyTab('subjects');
+  openSubjectDetail(subjectId);
+}
+
+function updateSubjectStats() {
+  const planned = subjects.reduce((a, s) => a + (parseFloat(s.estimated_hours) || 0) * 60, 0);
+  const studied = subjects.reduce((a, s) => a + subjectStudiedMinutes(s.id), 0);
+  const pct = planned ? Math.min(100, Math.round(studied / planned * 100)) : 0;
+  document.getElementById('subjectTotalCount').textContent = subjects.length;
+  document.getElementById('subjectTopicTotal').textContent = fmtStudyTime(planned);
+  document.getElementById('subjectTopicDone').textContent = fmtStudyTime(studied);
+  document.getElementById('subjectTopicLeft').textContent = fmtStudyTime(Math.max(0, planned - studied));
+  document.getElementById('subjectOverallProgress').textContent = pct + '%';
+  const fill = document.getElementById('subjectProgressFill');
+  if (fill) fill.style.width = pct + '%';
+}
+
+function renderSubjects() {
+  updateSubjectStats();
+  const container = document.getElementById('subjectsList');
+  if (!container) return;
+
+  if (!subjects.length) {
+    container.innerHTML = `
+      <div class="subject-empty">
+        <span class="empty-icon">📚</span>
+        <h3>No subjects yet!</h3>
+        <p>Add subjects you want to learn and track your progress.</p>
+        <button class="subject-empty-btn" onclick="openSubjectModal()">Add Your First Subject</button>
+      </div>`;
+    return;
+  }
+
+  const search = (document.getElementById('subjectSearch') || {}).value || '';
+  const catFilter = (document.getElementById('subjectCategoryFilter') || {}).value || 'all';
+  const sortBy = (document.getElementById('subjectSort') || {}).value || 'recent';
+  const prioRank = { high: 0, medium: 1, low: 2 };
+
+  let items = subjects.filter(s => {
+    if (catFilter !== 'all' && s.category !== catFilter) return false;
+    if (search && !(s.name || '').toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  items.sort((a, b) => {
+    if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+    if (sortBy === 'progress-high' || sortBy === 'progress-low') {
+      const d = subjectProgress(b.id).pct - subjectProgress(a.id).pct;
+      return sortBy === 'progress-high' ? d : -d;
+    }
+    if (sortBy === 'priority') return (prioRank[a.priority] ?? 1) - (prioRank[b.priority] ?? 1);
+    if (sortBy === 'target-date') return (a.target_date || '9999').localeCompare(b.target_date || '9999');
+    return 0; // recently added - already ordered by created_at desc
+  });
+
+  if (!items.length) {
+    container.innerHTML = '<div class="subject-empty"><p>No subjects match your filters.</p></div>';
+    return;
+  }
+
+  container.innerHTML = items.map(s => {
+    const hsCard = subjectHoursStats(s.id);
+    const linkedCount = subjectExams(s.id).length;
+    const cat = s.category ? `<span class="category-badge">${escapeHtml(s.category)}</span>` : '';
+    const prio = s.priority ? `<span class="priority-badge-subject ${s.priority}">${escapeHtml(s.priority)}</span>` : '';
+    return `
+      <div class="subject-card">
+        <div class="subject-card-top">
+          <div>
+            <div class="subject-name">${escapeHtml(s.name || 'Untitled Subject')}</div>
+            <div class="subject-meta-row">${cat}${prio}${linkedCount ? `<span class="linked-exams-badge">🔗 ${linkedCount} exam${linkedCount > 1 ? 's' : ''}</span>` : ''}</div>
+          </div>
+        </div>
+        ${s.description ? `<div class="subject-desc">${escapeHtml(s.description)}</div>` : ''}
+        ${s.learning_goal ? `<div class="subject-meta-row">🎯 ${escapeHtml(s.learning_goal)}</div>` : ''}
+        <div class="subject-progress-wrap">
+          <div class="subject-progress-label"><span>Study Progress</span><strong>${hsCard.pct}%</strong></div>
+          <div class="subject-progress-bar"><div class="subject-progress-fill" style="width:${hsCard.pct}%"></div></div>
+          <div class="subject-meta-row" style="margin-top:6px">
+            <span>⏱ ${s.estimated_hours ? s.estimated_hours + 'h planned' : 'No hours set'}</span>
+            <span>${fmtStudyTime(hsCard.studied)} studied</span>
+            <span>${fmtStudyTime(hsCard.remaining)} left</span>
+            ${s.target_date ? `<span>🎯 Due ${new Date(s.target_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>` : ''}
+          </div>
+        </div>
+        <div class="subject-actions">
+          <button class="subject-time-btn" onclick="openStudySessionModal(null, '${s.id}')">⏱ Time</button>
+          <button class="subject-view-btn" onclick="openSubjectDetail('${s.id}')">View Subject</button>
+          <button class="subject-edit-btn" onclick="openSubjectModal('${s.id}')">Edit</button>
+          <button class="subject-delete-btn" onclick="deleteSubject('${s.id}')">Delete</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openSubjectModal(id) {
+  editingSubjectId = id || null;
+  const s = id ? subjects.find(x => x.id === id) : null;
+  document.getElementById('subjectModalTitle').textContent = s ? 'Edit Subject' : 'Add Subject';
+  document.getElementById('subjectName').value = s ? s.name || '' : '';
+  document.getElementById('subjectCategory').value = s ? s.category || '' : '';
+  document.getElementById('subjectDescription').value = s ? s.description || '' : '';
+  document.getElementById('subjectGoal').value = s ? s.learning_goal || '' : '';
+  document.getElementById('subjectTargetDate').value = s ? s.target_date || '' : '';
+  document.getElementById('subjectPriority').value = s ? s.priority || 'medium' : 'medium';
+  document.getElementById('subjectHours').value = s ? s.estimated_hours ?? '' : '';
+  document.getElementById('subjectError').hidden = true;
+  document.getElementById('subjectModal').classList.add('show');
+  document.getElementById('subjectName').focus();
+}
+
+function closeSubjectModal() {
+  document.getElementById('subjectModal').classList.remove('show');
+}
+
+function showSubjectError(msg) {
+  const el = document.getElementById('subjectError');
+  el.textContent = msg;
+  el.hidden = false;
+}
+
+async function saveSubject() {
+  const name = document.getElementById('subjectName').value.trim();
+  const category = document.getElementById('subjectCategory').value;
+  const description = document.getElementById('subjectDescription').value.trim();
+  const learningGoal = document.getElementById('subjectGoal').value.trim();
+  const targetDate = document.getElementById('subjectTargetDate').value;
+  const priority = document.getElementById('subjectPriority').value;
+  const hours = document.getElementById('subjectHours').value;
+
+  document.getElementById('subjectError').hidden = true;
+  if (!name) return showSubjectError('Please enter a subject name.');
+  if (!category) return showSubjectError('Please select a category.');
+  const hoursNum = parseFloat(hours);
+  if (isNaN(hoursNum) || hoursNum <= 0) return showSubjectError('Please enter total estimated study hours (a positive number).');
+
+  const saveBtn = document.querySelector('#subjectModal .save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  try {
+    const payload = {
+      name,
+      category,
+      description: description || null,
+      learning_goal: learningGoal || null,
+      target_date: targetDate || null,
+      priority,
+      estimated_hours: hoursNum
+    };
+
+    if (editingSubjectId) {
+      const { data, error } = await window.supabase.from('subjects').update(payload).eq('id', editingSubjectId).eq('user_id', currentUser.id).select().single();
+      if (error) throw error;
+      const idx = subjects.findIndex(s => s.id === editingSubjectId);
+      if (idx !== -1) subjects[idx] = data;
+    } else {
+      const { data, error } = await window.supabase.from('subjects').insert({ user_id: currentUser.id, ...payload }).select().single();
+      if (error) throw error;
+      subjects.unshift(data);
+    }
+
+    populateExamSubjectOptions();
+    renderSubjects();
+    if (currentSubjectId) renderSubjectDetail();
+    closeSubjectModal();
+  } catch (error) {
+    showSubjectError('Failed to save subject: ' + error.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Subject';
+  }
+}
+
+async function deleteSubject(id) {
+  if (!confirm('Delete this subject? All its units and topics will also be deleted.')) return;
+  try {
+    const { error } = await window.supabase.from('subjects').delete().eq('id', id).eq('user_id', currentUser.id);
+    if (error) throw error;
+    subjects = subjects.filter(s => s.id !== id);
+    subjectUnits = subjectUnits.filter(u => u.subject_id !== id);
+    subjectTopics = subjectTopics.filter(t => t.subject_id !== id);
+    exams.forEach(e => { if (e.subject_id === id) e.subject_id = null; });
+    if (currentSubjectId === id) closeSubjectDetail();
+    populateExamSubjectOptions();
+    renderSubjects();
+    renderExams();
+  } catch (error) {
+    showToast('Failed to delete subject: ' + error.message);
+  }
+}
+
+// ---------- Subject detail ----------
+
+function openSubjectDetail(id) {
+  currentSubjectId = id;
+  document.getElementById('studySubjectsSection').hidden = true;
+  document.getElementById('studyExamsSection').hidden = true;
+  document.getElementById('subjectDetailPanel').hidden = false;
+  document.getElementById('studyBackBtn').hidden = false;
+  renderSubjectDetail();
+}
+
+function openSubjectDetailFromStudy(id) { openSubjectDetail(id); }
+
+function closeSubjectDetail() {
+  currentSubjectId = null;
+  document.getElementById('subjectDetailPanel').hidden = true;
+  document.getElementById('studyBackBtn').hidden = true;
+  document.getElementById('studySubjectsSection').hidden = false;
+  renderSubjects();
+}
+
+function toggleUnit(unitId) {
+  const body = document.getElementById(`unitBody-${unitId}`);
+  const toggle = document.getElementById(`unitToggle-${unitId}`);
+  if (!body) return;
+  const open = body.classList.toggle('open');
+  if (toggle) toggle.textContent = open ? '▾' : '▸';
+}
+
+function renderSubjectDetail() {
+  const s = subjects.find(x => x.id === currentSubjectId);
+  const container = document.getElementById('subjectDetailContent');
+  if (!s || !container) { closeSubjectDetail(); return; }
+
+  const hs = subjectHoursStats(s.id);
+  const linkedExams = subjectExams(s.id);
+  const cat = s.category ? `<span class="category-badge">${escapeHtml(s.category)}</span>` : '';
+  const prio = s.priority ? `<span class="priority-badge-subject ${s.priority}">${escapeHtml(s.priority)}</span>` : '';
+
+  const examsHtml = linkedExams.length ? linkedExams.map(exam => {
+    const status = examStatus(exam);
+    const [y, mo, d] = exam.exam_date.split('-').map(Number);
+    const dateStr = new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const timeStr = exam.end_time ? `${exam.start_time} – ${exam.end_time}` : (exam.start_time || '');
+    return `
+      <div class="linked-exam-item">
+        <div class="linked-exam-info">
+          <div class="linked-exam-name">${escapeHtml(exam.name)}</div>
+          <div class="linked-exam-meta">📅 ${dateStr}${timeStr ? ` · 🕐 ${escapeHtml(timeStr)}` : ''}${exam.exam_type ? ` · 🏷️ ${escapeHtml(exam.exam_type)}` : ''}</div>
+        </div>
+        <span class="exam-countdown cd-${status} linked-exam-countdown">${examCountdownLabel(exam)}</span>
+      </div>`;
+  }).join('') : '<div class="no-linked-exams">No examinations linked to this subject.</div>';
+
+  const sessions = studySessions.filter(x => x.subject_id === s.id)
+    .sort((a, b) => (b.session_date || '').localeCompare(a.session_date || '') || (b.created_at || '').localeCompare(a.created_at || ''));
+  const sessionsHtml = sessions.length ? sessions.map(sess => {
+    const d = new Date(sess.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return `
+    <div class="session-item">
+      <div class="session-info">
+        <span class="session-date">📅 ${d}</span><span class="session-duration">${fmtStudyTime(sess.duration_minutes || 0)}</span>
+        ${sess.description ? `<div class="session-desc">${escapeHtml(sess.description)}</div>` : ''}
+        ${sess.notes ? `<div class="session-notes-inline2">${escapeHtml(sess.notes)}</div>` : ''}
+      </div>
+      <div class="session-actions">
+        <button class="session-edit-btn" onclick="openStudySessionModal('${sess.id}')">Edit</button>
+        <button class="session-delete-btn" onclick="deleteStudySession('${sess.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="no-linked-exams">No study sessions logged yet.</div>';
+
+  container.innerHTML = `
+    <div class="subject-detail-header">
+      <div class="subject-detail-title">${escapeHtml(s.name)}</div>
+      <div class="subject-detail-sub">${cat} ${prio}</div>
+      ${s.description ? `<div class="subject-desc">${escapeHtml(s.description)}</div>` : ''}
+      ${s.learning_goal ? `<div class="subject-meta-row">🎯 Goal: ${escapeHtml(s.learning_goal)}</div>` : ''}
+      <div class="subject-detail-grid">
+        <div class="subject-detail-stat"><span class="sds-label">Total Planned</span><span class="sds-value hours-stat-value">${s.estimated_hours ? s.estimated_hours + 'h' : '—'}</span></div>
+        <div class="subject-detail-stat"><span class="sds-label">Studied</span><span class="sds-value hours-stat-value">${fmtStudyTime(hs.studied)}</span></div>
+        <div class="subject-detail-stat"><span class="sds-label">Remaining</span><span class="sds-value hours-stat-value">${fmtStudyTime(hs.remaining)}</span></div>
+        <div class="subject-detail-stat"><span class="sds-label">Completion</span><span class="sds-value">${hs.pct}%</span></div>
+        ${s.target_date ? `<div class="subject-detail-stat"><span class="sds-label">Target Date</span><span class="sds-value" style="font-size:.9em">${new Date(s.target_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></div>` : ''}
+      </div>
+      <div class="subject-progress-wrap">
+        <div class="subject-progress-label"><span>Study Progress</span><strong>${hs.pct}%</strong></div>
+        <div class="subject-progress-bar"><div class="subject-progress-fill" style="width:${hs.pct}%"></div></div>
+        ${!s.estimated_hours ? '<div class="subject-meta-row" style="margin-top:6px;color:#d97706">⚠️ Set estimated study hours (Edit Subject) to track progress.</div>' : ''}
+      </div>
+      <div class="study-hours-btn-row"><button class="add-small-btn" onclick="openStudySessionModal()">+ Log Study Time</button></div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Associated Exams <button class="add-small-btn" onclick="openLinkExamModal()">+ Link Existing Exam</button></h3>
+      ${examsHtml}
+    </div>
+
+    <div class="detail-section">
+      <h3>Study History</h3>
+      <div class="session-list">${sessionsHtml}</div>
+    </div>`;
+}
+
+// ---------- Units ----------
+
+function openUnitModal(id) {
+  editingUnitId = id || null;
+  const u = id ? subjectUnits.find(x => x.id === id) : null;
+  document.getElementById('unitModalTitle').textContent = u ? 'Edit Unit' : 'Add Unit';
+  document.getElementById('unitName').value = u ? u.name || '' : '';
+  document.getElementById('unitDescription').value = u ? u.description || '' : '';
+  document.getElementById('unitError').hidden = true;
+  document.getElementById('unitModal').classList.add('show');
+  document.getElementById('unitName').focus();
+}
+
+function closeUnitModal() { document.getElementById('unitModal').classList.remove('show'); }
+
+function showUnitError(msg) {
+  const el = document.getElementById('unitError');
+  el.textContent = msg; el.hidden = false;
+}
+
+async function saveUnit() {
+  const name = document.getElementById('unitName').value.trim();
+  const description = document.getElementById('unitDescription').value.trim();
+  document.getElementById('unitError').hidden = true;
+  if (!name) return showUnitError('Please enter a unit name.');
+  if (!currentSubjectId) return showUnitError('No subject selected.');
+
+  const saveBtn = document.querySelector('#unitModal .save-btn');
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
+  try {
+    const payload = { subject_id: currentSubjectId, name, description: description || null, user_id: currentUser.id };
+    if (editingUnitId) {
+      const { data, error } = await window.supabase.from('subject_units').update({ name, description: description || null }).eq('id', editingUnitId).eq('user_id', currentUser.id).select().single();
+      if (error) throw error;
+      const idx = subjectUnits.findIndex(u => u.id === editingUnitId);
+      if (idx !== -1) subjectUnits[idx] = data;
+    } else {
+      payload.display_order = subjectUnits.filter(u => u.subject_id === currentSubjectId).length;
+      const { data, error } = await window.supabase.from('subject_units').insert(payload).select().single();
+      if (error) throw error;
+      subjectUnits.push(data);
+    }
+    renderSubjectDetail(); renderSubjects();
+    closeUnitModal();
+  } catch (error) {
+    showUnitError('Failed to save unit: ' + error.message);
+  } finally {
+    saveBtn.disabled = false; saveBtn.textContent = 'Save Unit';
+  }
+}
+
+async function deleteUnit(id) {
+  if (!confirm('Delete this unit and all its topics?')) return;
+  try {
+    const { error } = await window.supabase.from('subject_units').delete().eq('id', id).eq('user_id', currentUser.id);
+    if (error) throw error;
+    subjectUnits = subjectUnits.filter(u => u.id !== id);
+    subjectTopics = subjectTopics.filter(t => t.unit_id !== id);
+    renderSubjectDetail(); renderSubjects();
+  } catch (error) {
+    showToast('Failed to delete unit: ' + error.message);
+  }
+}
+
+// ---------- Topics ----------
+
+let topicUnitId = null;
+
+function openTopicModal(id, unitId) {
+  editingTopicId = id || null;
+  topicUnitId = unitId || (id ? (subjectTopics.find(t => t.id === id) || {}).unit_id : null);
+  const t = id ? subjectTopics.find(x => x.id === id) : null;
+  document.getElementById('topicModalTitle').textContent = t ? 'Edit Topic' : 'Add Topic';
+  document.getElementById('topicName').value = t ? t.name || '' : '';
+  document.getElementById('topicDescription').value = t ? t.description || '' : '';
+  document.getElementById('topicPriority').value = t ? t.priority || 'medium' : 'medium';
+  document.getElementById('topicTime').value = t ? t.estimated_time || '' : '';
+  document.getElementById('topicNotes').value = t ? t.notes || '' : '';
+  document.getElementById('topicError').hidden = true;
+  document.getElementById('topicModal').classList.add('show');
+  document.getElementById('topicName').focus();
+}
+
+function closeTopicModal() { document.getElementById('topicModal').classList.remove('show'); }
+
+function showTopicError(msg) {
+  const el = document.getElementById('topicError');
+  el.textContent = msg; el.hidden = false;
+}
+
+async function saveTopic() {
+  const name = document.getElementById('topicName').value.trim();
+  const description = document.getElementById('topicDescription').value.trim();
+  const priority = document.getElementById('topicPriority').value;
+  const estTime = document.getElementById('topicTime').value.trim();
+  const notes = document.getElementById('topicNotes').value.trim();
+  document.getElementById('topicError').hidden = true;
+  if (!name) return showTopicError('Please enter a topic name.');
+  if (!currentSubjectId || !topicUnitId) return showTopicError('No unit selected.');
+
+  const saveBtn = document.querySelector('#topicModal .save-btn');
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
+  try {
+    const payload = {
+      subject_id: currentSubjectId,
+      unit_id: topicUnitId,
+      name,
+      description: description || null,
+      priority,
+      estimated_time: estTime || null,
+      notes: notes || null,
+      user_id: currentUser.id
+    };
+    if (editingTopicId) {
+      const { data, error } = await window.supabase.from('subject_topics').update({
+        name, description: description || null, priority,
+        estimated_time: estTime || null, notes: notes || null
+      }).eq('id', editingTopicId).eq('user_id', currentUser.id).select().single();
+      if (error) throw error;
+      const idx = subjectTopics.findIndex(t => t.id === editingTopicId);
+      if (idx !== -1) subjectTopics[idx] = data;
+    } else {
+      const { data, error } = await window.supabase.from('subject_topics').insert(payload).select().single();
+      if (error) throw error;
+      subjectTopics.push(data);
+    }
+    renderSubjectDetail(); renderSubjects();
+    closeTopicModal();
+  } catch (error) {
+    showTopicError('Failed to save topic: ' + error.message);
+  } finally {
+    saveBtn.disabled = false; saveBtn.textContent = 'Save Topic';
+  }
+}
+
+async function toggleTopicComplete(id, checked) {
+  await setTopicStatus(id, checked ? 'completed' : 'not_started');
+}
+
+async function setTopicStatus(id, status) {
+  try {
+    const { data, error } = await window.supabase.from('subject_topics').update({ status }).eq('id', id).eq('user_id', currentUser.id).select().single();
+    if (error) throw error;
+    const idx = subjectTopics.findIndex(t => t.id === id);
+    if (idx !== -1) subjectTopics[idx] = data;
+    renderSubjectDetail(); renderSubjects();
+  } catch (error) {
+    showToast('Failed to update topic: ' + error.message);
+    renderSubjectDetail();
+  }
+}
+
+async function deleteTopic(id) {
+  if (!confirm('Delete this topic?')) return;
+  try {
+    const { error } = await window.supabase.from('subject_topics').delete().eq('id', id).eq('user_id', currentUser.id);
+    if (error) throw error;
+    subjectTopics = subjectTopics.filter(t => t.id !== id);
+    renderSubjectDetail(); renderSubjects();
+  } catch (error) {
+    showToast('Failed to delete topic: ' + error.message);
+  }
+}
+
+// ---------- Link exams to subject ----------
+
+function openLinkExamModal() {
+  linkExamSubjectId = currentSubjectId;
+  const sel = document.getElementById('linkExamSelect');
+  const unlinked = exams.filter(e => !e.subject_id || e.subject_id === currentSubjectId);
+  sel.innerHTML = unlinked.length
+    ? unlinked.map(e => `<option value="${e.id}">${escapeHtml(e.name)} — ${e.exam_date}</option>`).join('')
+    : '<option value="">No exams available to link</option>';
+  document.getElementById('linkExamError').hidden = true;
+  document.getElementById('linkExamModal').classList.add('show');
+}
+
+function closeLinkExamModal() { document.getElementById('linkExamModal').classList.remove('show'); }
+
+async function linkSelectedExam() {
+  const examId = document.getElementById('linkExamSelect').value;
+  const errEl = document.getElementById('linkExamError');
+  if (!examId) { errEl.textContent = 'Please select an exam.'; errEl.hidden = false; return; }
+  try {
+    const { data, error } = await window.supabase.from('exams').update({ subject_id: linkExamSubjectId }).eq('id', examId).eq('user_id', currentUser.id).select().single();
+    if (error) throw error;
+    const idx = exams.findIndex(e => e.id === examId);
+    if (idx !== -1) exams[idx] = data;
+    renderSubjectDetail(); renderSubjects(); populateExamSubjectOptions(); renderExams();
+    closeLinkExamModal();
+  } catch (error) {
+    errEl.textContent = 'Failed to link exam: ' + error.message;
+    errEl.hidden = false;
+  }
+}
+
+// ---------- Study sessions (hours tracking) ----------
+
+function fmtStudyTime(minutes) {
+  minutes = Math.round(minutes || 0);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+function subjectStudiedMinutes(subjectId) {
+  return studySessions.filter(s => s.subject_id === subjectId).reduce((a, s) => a + (s.duration_minutes || 0), 0);
+}
+
+function subjectHoursStats(subjectId) {
+  const s = subjects.find(x => x.id === subjectId);
+  const planned = (s && s.estimated_hours ? parseFloat(s.estimated_hours) : 0) * 60;
+  const studied = subjectStudiedMinutes(subjectId);
+  const remaining = Math.max(0, planned - studied);
+  const pct = planned ? Math.min(100, Math.round(studied / planned * 100)) : 0;
+  return { planned, studied, remaining, pct };
+}
+
+function openStudySessionModal(sessionId, subjectId) {
+  editingSessionId = sessionId || null;
+  sessionSubjectId = subjectId || currentSubjectId;
+  const sess = sessionId ? studySessions.find(x => x.id === sessionId) : null;
+  document.getElementById('studySessionModalTitle').textContent = sess ? 'Edit Study Session' : 'Log Study Time';
+  const totalMin = sess ? (sess.duration_minutes || 0) : 0;
+  document.getElementById('sessionHours').value = sess ? (Math.floor(totalMin / 60) + (totalMin % 60) / 60 || '') : '';
+  document.getElementById('sessionMinutes').value = sess ? (totalMin % 60) : '';
+  document.getElementById('sessionDate').value = sess ? sess.session_date : localDateString();
+  document.getElementById('sessionDescription').value = sess ? sess.description || '' : '';
+  document.getElementById('sessionNotes').value = sess ? sess.notes || '' : '';
+  document.getElementById('sessionError').hidden = true;
+  document.getElementById('studySessionModal').classList.add('show');
+}
+
+function closeStudySessionModal() { document.getElementById('studySessionModal').classList.remove('show'); }
+
+function showSessionError(msg) {
+  const el = document.getElementById('sessionError');
+  el.textContent = msg; el.hidden = false;
+}
+
+async function saveStudySession() {
+  const hours = parseFloat(document.getElementById('sessionHours').value) || 0;
+  const minutes = parseInt(document.getElementById('sessionMinutes').value, 10) || 0;
+  const durationMinutes = Math.round(hours * 60) + minutes;
+  const sessionDate = document.getElementById('sessionDate').value || localDateString();
+  const description = document.getElementById('sessionDescription').value.trim();
+  const notes = document.getElementById('sessionNotes').value.trim();
+
+  document.getElementById('sessionError').hidden = true;
+  if (durationMinutes <= 0) return showSessionError('Please enter a study duration greater than zero.');
+  if (!sessionSubjectId) return showSessionError('No subject selected.');
+
+  const saveBtn = document.querySelector('#studySessionModal .save-btn');
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
+  try {
+    const payload = {
+      subject_id: sessionSubjectId,
+      unit_id: null,
+      topic_id: null,
+      duration_minutes: durationMinutes,
+      session_date: sessionDate,
+      description: description || null,
+      notes: notes || null,
+      user_id: currentUser.id
+    };
+    if (editingSessionId) {
+      const { data, error } = await window.supabase.from('study_sessions').update({
+        unit_id: null, topic_id: null, duration_minutes: durationMinutes,
+        session_date: sessionDate, description: description || null, notes: notes || null
+      }).eq('id', editingSessionId).eq('user_id', currentUser.id).select().single();
+      if (error) throw error;
+      const idx = studySessions.findIndex(x => x.id === editingSessionId);
+      if (idx !== -1) studySessions[idx] = data;
+    } else {
+      const { data, error } = await window.supabase.from('study_sessions').insert(payload).select().single();
+      if (error) throw error;
+      studySessions.unshift(data);
+    }
+    renderSubjectDetail(); renderSubjects();
+    closeStudySessionModal();
+  } catch (error) {
+    showSessionError('Failed to save session: ' + error.message);
+  } finally {
+    saveBtn.disabled = false; saveBtn.textContent = 'Save Session';
+  }
+}
+
+async function deleteStudySession(id) {
+  if (!confirm('Delete this study session?')) return;
+  try {
+    const { error } = await window.supabase.from('study_sessions').delete().eq('id', id).eq('user_id', currentUser.id);
+    if (error) throw error;
+    studySessions = studySessions.filter(x => x.id !== id);
+    renderSubjectDetail(); renderSubjects();
+  } catch (error) {
+    showToast('Failed to delete session: ' + error.message);
+  }
+}
+
+function updateStudyAnalysis(startDate, endDate) {
+  const el = id => document.getElementById(id);
+  if (!el('studyTotalSubjects')) return;
+  el('studyTotalSubjects').textContent = subjects.length;
+  const periodSessions = studySessions.filter(s => s.session_date >= startDate && s.session_date <= endDate);
+  el('studyTopicsCompleted').textContent = periodSessions.length;
+  const studiedMin = periodSessions.reduce((a, s) => a + (s.duration_minutes || 0), 0);
+  el('studyHoursStudied').textContent = fmtStudyTime(studiedMin);
+  const totalPlannedMin = subjects.reduce((a, s) => a + (parseFloat(s.estimated_hours) || 0) * 60, 0);
+  const allStudiedMin = studySessions.reduce((a, s) => a + (s.duration_minutes || 0), 0);
+  const pct = totalPlannedMin ? Math.min(100, Math.round(allStudiedMin / totalPlannedMin * 100)) : 0;
+  el('studyCompletionPct').textContent = pct + '%';
+  const bySubject = {};
+  studySessions.forEach(s => { bySubject[s.subject_id] = (bySubject[s.subject_id] || 0) + (s.duration_minutes || 0); });
+  const studyPalette = ['#128C7E', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1'];
+  const bars = subjects
+    .map((sub, i) => ({ label: sub.name || 'Subject', value: Math.round((bySubject[sub.id] || 0) / 60 * 10) / 10, color: studyPalette[i % studyPalette.length] }))
+    .sort((a, b) => b.value - a.value).slice(0, 8);
+  renderSimpleBarChart('studyHoursChart', bars);
+}
+
+// Toast notification system (replaces browser alerts)
+function showToast(message, type) {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  if (!type) {
+    type = /fail|error|invalid|please|must|not match|try again|denied/i.test(message) ? 'error' : 'success';
+  }
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
