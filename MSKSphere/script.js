@@ -618,23 +618,23 @@ function getDayTasks(dateString) {
 
   // Sort by priority (high → medium → low) and then by time
   dayTasks.sort((a, b) => {
-    // First sort by completion status (incomplete first)
+    // Sort by scheduled time first (earliest first, unscheduled last)
+    const aTime = a.scheduled_start_time || '23:59';
+    const bTime = b.scheduled_start_time || '23:59';
+    if (aTime !== bTime) {
+      return aTime.localeCompare(bTime);
+    }
+
+    // Then by completion status (incomplete first)
     if (a.completed !== b.completed) {
       return Number(a.completed) - Number(b.completed);
     }
 
-    // Then sort by priority (high → medium → low)
+    // Then by priority (high → medium → low)
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     const aPriority = priorityOrder[a.priority] ?? 1;
     const bPriority = priorityOrder[b.priority] ?? 1;
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
-    }
-
-    // Finally sort by time (earliest first)
-    const aTime = a.scheduled_start_time || '23:59';
-    const bTime = b.scheduled_start_time || '23:59';
-    return aTime.localeCompare(bTime);
+    return aPriority - bPriority;
   });
 
   return dayTasks;
@@ -882,23 +882,23 @@ function renderTasks() {
   const todayTasks = getDayTasks(todayStr);
   // Sort today's tasks by priority and time
   todayTasks.sort((a, b) => {
-    // First sort by completion status (incomplete first)
+    // Sort by scheduled time first (earliest first, unscheduled last)
+    const aTime = a.scheduled_start_time || '23:59';
+    const bTime = b.scheduled_start_time || '23:59';
+    if (aTime !== bTime) {
+      return aTime.localeCompare(bTime);
+    }
+
+    // Then by completion status (incomplete first)
     if (a.completed !== b.completed) {
       return Number(a.completed) - Number(b.completed);
     }
 
-    // Then sort by priority (high → medium → low)
+    // Then by priority (high → medium → low)
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     const aPriority = priorityOrder[a.priority] ?? 1;
     const bPriority = priorityOrder[b.priority] ?? 1;
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
-    }
-
-    // Finally sort by time (earliest first)
-    const aTime = a.scheduled_start_time || '23:59';
-    const bTime = b.scheduled_start_time || '23:59';
-    return aTime.localeCompare(bTime);
+    return aPriority - bPriority;
   });
 
   document.getElementById('dashboardTaskList').innerHTML = todayTasks.length
