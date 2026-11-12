@@ -618,16 +618,16 @@ function getDayTasks(dateString) {
 
   // Sort by priority (high → medium → low) and then by time
   dayTasks.sort((a, b) => {
-    // Sort by scheduled time first (earliest first, unscheduled last)
+    // Incomplete tasks first, completed tasks always at the bottom
+    if (a.completed !== b.completed) {
+      return Number(a.completed) - Number(b.completed);
+    }
+
+    // Then by scheduled time (earliest first, unscheduled last)
     const aTime = a.scheduled_start_time || '23:59';
     const bTime = b.scheduled_start_time || '23:59';
     if (aTime !== bTime) {
       return aTime.localeCompare(bTime);
-    }
-
-    // Then by completion status (incomplete first)
-    if (a.completed !== b.completed) {
-      return Number(a.completed) - Number(b.completed);
     }
 
     // Then by priority (high → medium → low)
@@ -882,16 +882,16 @@ function renderTasks() {
   const todayTasks = getDayTasks(todayStr);
   // Sort today's tasks by priority and time
   todayTasks.sort((a, b) => {
-    // Sort by scheduled time first (earliest first, unscheduled last)
+    // Incomplete tasks first, completed tasks always at the bottom
+    if (a.completed !== b.completed) {
+      return Number(a.completed) - Number(b.completed);
+    }
+
+    // Then by scheduled time (earliest first, unscheduled last)
     const aTime = a.scheduled_start_time || '23:59';
     const bTime = b.scheduled_start_time || '23:59';
     if (aTime !== bTime) {
       return aTime.localeCompare(bTime);
-    }
-
-    // Then by completion status (incomplete first)
-    if (a.completed !== b.completed) {
-      return Number(a.completed) - Number(b.completed);
     }
 
     // Then by priority (high → medium → low)
