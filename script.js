@@ -3323,6 +3323,8 @@ function openAccountsModal() {
   if (modal) {
     modal.classList.add('show');
     renderAccountsList();
+    const addSection = document.querySelector('.add-account-section');
+    if (addSection) addSection.style.display = accounts.length > 0 ? 'none' : '';
     const errorEl = document.getElementById('accountError');
     if (errorEl) errorEl.hidden = true;
   }
@@ -3342,6 +3344,10 @@ function closeAccountsModal() {
 }
 
 async function saveAccount() {
+  if (accounts.length > 0) {
+    showToast('Only one account is allowed. Delete the existing account first.');
+    return;
+  }
   const nameEl = document.getElementById('accountName');
   const typeEl = document.getElementById('accountType');
   const balanceEl = document.getElementById('accountOpeningBalance');
