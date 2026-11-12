@@ -495,3 +495,16 @@ button{-webkit-tap-highlight-color:transparent}
 .transaction-actions .delete-btn,.account-actions .delete-btn,.lent-actions .delete-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;min-height:36px;padding:6px 12px;font-size:11.5px;font-weight:600;border-radius:8px}
 .transaction-actions .delete-btn:active,.account-actions .delete-btn:active,.lent-actions .delete-btn:active{background:#fee2e2}
 }
+
+/* Mobile task list - clean even rows */
+@media (max-width:768px){
+.task-list li,#dashboardTaskList li{display:flex;flex-direction:column;gap:10px;padding:14px 14px;margin-bottom:10px;background:#fff;border:1px solid #e9ecef;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.task-list li .task-info,#dashboardTaskList li .task-info{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;width:100%}
+.task-list li .task-info input[type="checkbox"],#dashboardTaskList li .task-info input[type="checkbox"]{width:20px;height:20px;margin-top:2px;flex-shrink:0;accent-color:#128c7e}
+.task-text{flex:1;min-width:140px;font-size:.92em;line-height:1.45;font-weight:500;color:#1f2937}
+.task-list li.completed .task-text,#dashboardTaskList li.completed .task-text{color:#9ca3af;text-decoration:line-through}
+.priority-badge,.repetition-badge,.template-time-badge,.template-icon-badge{font-size:.72em;padding:3px 8px;border-radius:10px;white-space:nowrap}
+.task-actions{display:flex;gap:8px;width:100%}
+.task-actions button{flex:1;min-height:40px;font-size:12px;border-radius:8px;font-weight:600}
+.task-list li.empty,#dashboardTaskList li.empty{background:transparent;border:none;box-shadow:none;text-align:center;color:#999;padding:24px 10px}
+}
