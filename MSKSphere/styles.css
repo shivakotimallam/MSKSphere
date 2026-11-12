@@ -1936,3 +1936,4 @@ li.completed .task-text { text-decoration:line-through;
     background:transparent; border:none; box-shadow:none; text-align:center; color:#999; padding:24px 10px;
   }
 }
+.secret-badge { display:inline-block; margin-left:6px; padding:2px 8px; border-radius:10px; font-size:.68em; font-weight:700; background:#fef3c7; color:#92400e; vertical-align:middle; }

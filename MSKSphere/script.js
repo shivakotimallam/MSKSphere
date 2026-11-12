@@ -462,7 +462,7 @@ async function loadUserData() {
   
   // Load accounts and transactions (with error handling for tables that don't exist yet)
   try {
-    const { data: accountsData } = await window.supabase.from('accounts').select('id,name,type,opening_balance,current_balance').eq('user_id', user.id).order('created_at', { ascending: true });
+    const { data: accountsData } = await window.supabase.from('accounts').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
     accounts = accountsData || [];
   } catch (error) {
     console.log('Accounts table may not exist yet:', error.message);
@@ -3282,7 +3282,7 @@ function updateMoneyOverview(date) {
   if (!totalBalanceEl || !todayIncomeEl || !todayExpensesEl || !todayNetSavingsEl || !totalLentEl) return;
   
   // Calculate total balance (sum of all account balances)
-  const totalBalance = accounts.reduce((sum, acc) => sum + parseFloat(acc.current_balance || 0), 0);
+  const totalBalance = accounts.reduce((sum, acc) => sum + (acc.is_secret ? 0 : parseFloat(acc.current_balance || 0)), 0);
   
   // Calculate today's income and expenses
   const todayTransactions = transactions.filter(t => t.date === date);
@@ -3324,7 +3324,7 @@ function openAccountsModal() {
     modal.classList.add('show');
     renderAccountsList();
     const addSection = document.querySelector('.add-account-section');
-    if (addSection) addSection.style.display = accounts.length > 0 ? 'none' : '';
+    if (addSection) addSection.style.display = accounts.length >= 5 ? 'none' : '';
     const errorEl = document.getElementById('accountError');
     if (errorEl) errorEl.hidden = true;
   }
@@ -3344,8 +3344,8 @@ function closeAccountsModal() {
 }
 
 async function saveAccount() {
-  if (accounts.length > 0) {
-    showToast('Only one account is allowed. Delete the existing account first.');
+  if (accounts.length >= 5) {
+    showToast('Maximum of 5 accounts reached. Delete an account first.');
     return;
   }
   const nameEl = document.getElementById('accountName');
@@ -3366,13 +3366,21 @@ async function saveAccount() {
   }
   
   try {
+    const isSecret = document.getElementById('accountSecret')?.checked || false;
     const { data, error } = await supabase.from('accounts').insert({
       user_id: currentUser.id,
       name,
       type,
       opening_balance: openingBalance,
-      current_balance: openingBalance
+      current_balance: openingBalance,
+      is_secret: isSecret
     }).select().single();
+    if (isSecret) {
+      accounts.forEach(a => { if (a.id !== data?.id && a.is_secret) a.is_secret = false; });
+      accounts.filter(a => a.id !== data?.id && a.is_secret !== false).forEach(async a => {
+        await supabase.from('accounts').update({ is_secret: false }).eq('id', a.id);
+      });
+    }
     
     if (error) {
       if (error.code === '42P01') {
@@ -3414,7 +3422,7 @@ function renderAccountsList() {
   accountsList.innerHTML = accounts.map(acc => `
     <div class="account-item">
       <div class="account-info">
-        <div class="account-name">${acc.name}</div>
+        <div class="account-name">${acc.name}${acc.is_secret ? ' <span class="secret-badge">Secret</span>' : ''}</div>
         <div class="account-type">${acc.type}</div>
       </div>
       <div class="account-balance">₹${parseFloat(acc.current_balance || 0).toFixed(2)}</div>
