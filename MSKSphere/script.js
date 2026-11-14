@@ -1162,6 +1162,7 @@ function switchView(view, button) {
   // Lazy load - only render data when view is activated
   if (view === 'dashboard') {
     updateStats();
+
   } else if (view === 'tasks') {
     renderTasks();
   } else if (view === 'calendar') {
@@ -2738,6 +2739,7 @@ function initializeApp() {
   renderCalendar();
   renderProfile();
 
+
   document.getElementById('modalTaskName').addEventListener('keydown', e => {
     if (e.key === 'Enter') saveTaskFromModal();
   });
@@ -3033,6 +3035,7 @@ async function saveMotivationSettings() {
     headerEmoji.style.display = 'inline-block';
 
     showToast('Motivation settings saved!');
+
   } else {
     showToast('Please enter both emoji and message');
   }

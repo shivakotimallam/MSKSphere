@@ -31,8 +31,8 @@
     .spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
   </style>
-  <link rel="preload" href="styles.min.css?v=51" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="styles.min.css?v=51"></noscript>
+  <link rel="preload" href="styles.min.css?v=62" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="styles.min.css?v=62"></noscript>
 </head>
 <body>
 
@@ -620,7 +620,7 @@
           </div>
           <div class="form-group">
             <label for="userMessage">Your Motivational Message</label>
-            <input type="text" id="userMessage" placeholder="e.g., You can do it! Keep going!" maxlength="100">
+            <input type="text" id="userMessage" placeholder="e.g., You can do it! Keep going!" maxlength="200">
           </div>
           <div class="settings-actions">
             <button onclick="saveMotivationSettings()">Save Motivation Settings</button>
@@ -1148,6 +1148,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
   <div id="toastContainer" class="toast-container"></div>
   <script src="js/config.js?v=5" defer></script>
-  <script src="script.min.js?v=54" defer></script>
+  <script src="script.min.js?v=63" defer></script>
 </body>
 </html>
