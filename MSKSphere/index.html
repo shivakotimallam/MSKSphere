@@ -16,8 +16,8 @@
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="MSKSphere - Your tasks. Your money. Your world.">
   <meta name="twitter:description" content="A personal productivity and finance application to plan tasks, track completion, build consistency, reflect on your days, and manage money.">
-  <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/png" href="msk.png">
+  <link rel="apple-touch-icon" href="msk.png">
   <link rel="manifest" href="manifest.json">
   <title>MSKSphere</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -30,11 +30,69 @@
     .loading-indicator{display:flex;flex-direction:column;align-items:center;gap:16px}
     .spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
+    #splashScreen{position:fixed;inset:0;background:linear-gradient(160deg,#eafff8 0%,#d4f5ec 40%,#b8ecd9 100%);display:flex;align-items:center;justify-content:center;z-index:99999;transition:opacity .7s ease;overflow:hidden}
+    .splash-blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:.55;animation:blobDrift 8s ease-in-out infinite alternate}
+    .splash-blob.b1{width:45vmax;height:45vmax;background:#7fe0c3;top:-15%;left:-10%}
+    .splash-blob.b2{width:38vmax;height:38vmax;background:#4ecfae;bottom:-12%;right:-8%;animation-delay:-3s}
+    .splash-blob.b3{width:28vmax;height:28vmax;background:#a8f0d8;top:35%;left:55%;animation-delay:-5s}
+    @keyframes blobDrift{0%{transform:translate(0,0) scale(1)}100%{transform:translate(6vmax,-4vmax) scale(1.15)}}
+    .splash-vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(13,92,80,.12) 100%)}
+    #splashScreen.hide{opacity:0;pointer-events:none}
+    .splash-quote{display:flex;flex-wrap:wrap;justify-content:center;align-items:baseline;gap:.18em .55em;max-width:94vw;padding:0 16px}
+    .splash-word{display:inline-flex;align-items:baseline;white-space:nowrap}
+    .splash-letter{color:#0d5c50;font-size:clamp(1.5rem,5.2vw,3rem);font-weight:900;letter-spacing:1px;opacity:0;text-shadow:0 4px 16px rgba(18,140,126,.16);display:inline-block;will-change:transform,opacity;animation:letterFall .8s cubic-bezier(.25,.9,.3,1) forwards}
+    @keyframes letterFall{0%{opacity:0;transform:translateY(-115vh) rotate(var(--tilt,0deg)) scale(1.05)}50%{opacity:1}72%{transform:translateY(8px) rotate(0) scale(1)}85%{transform:translateY(-3px)}100%{opacity:1;transform:translateY(0) rotate(0) scale(1)}}
+    .splash-ring{position:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.25);animation:ringExpand 1.6s ease-out infinite}
+    .splash-ring.r1{width:300px;height:300px;top:50%;left:50%;margin:-150px 0 0 -150px}
+    .splash-ring.r2{width:420px;height:420px;top:50%;left:50%;margin:-210px 0 0 -210px;animation-delay:.5s}
+    .splash-ring.r3{width:540px;height:540px;top:50%;left:50%;margin:-270px 0 0 -270px;animation-delay:1s}
+    @keyframes ringExpand{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.4);opacity:0}}
+    .splash-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.6);animation:dotFloat 3s ease-in-out infinite}
+    @keyframes dotFloat{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-30px);opacity:.9}}
+    .splash-lotus{width:clamp(140px,30vw,240px);height:auto;opacity:0;animation:lotusFadeIn 1.2s ease forwards}
+        .splash-bottom{position:absolute;bottom:7%;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:0}
+        .splash-title{color:rgba(13,92,80,.55);font-size:clamp(.85rem,2.5vw,1.1rem);font-weight:600;letter-spacing:4px;text-transform:uppercase;opacity:0;animation:titleFade 3s ease forwards}
+    @keyframes lotusFadeIn{0%{opacity:0;transform:scale(.85) translateY(-20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes titleFade{0%,70%{opacity:0}100%{opacity:.85}}
   </style>
-  <link rel="preload" href="styles.min.css?v=62" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="styles.min.css?v=62"></noscript>
+  <link rel="preload" href="styles.min.css?v=90" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="styles.min.css?v=90"></noscript>
 </head>
 <body>
+
+  <div id="splashScreen">
+    <div class="splash-blob b1"></div><div class="splash-blob b2"></div><div class="splash-blob b3"></div>
+    <div class="splash-vignette"></div>
+    <div class="splash-quote" id="splashQuote"></div>
+    <div class="splash-bottom">
+      <img src="msk.png" class="splash-lotus" alt="">
+      <div class="splash-title">MSKSphere</div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var scr=document.getElementById('splashScreen'),
+        q=document.getElementById('splashQuote'),
+        text=(localStorage.getItem('entryMessage')||'BE BETTER THAN YESTERDAY').toUpperCase(),
+        i=0;
+    var li=0;
+    text.split(' ').forEach(function(word){
+      var w=document.createElement('span');
+      w.className='splash-word';
+      for(var c=0;c<word.length;c++){
+        var s=document.createElement('span');
+        s.className='splash-letter';
+        s.textContent=word[c];
+        s.style.animationDelay=(0.05+li*0.06).toFixed(2)+'s';
+        s.style.setProperty('--tilt',(Math.random()*16-8).toFixed(1)+'deg');
+        li++;
+        w.appendChild(s);
+      }
+      q.appendChild(w);
+    });
+    setTimeout(function(){scr.classList.add('hide');setTimeout(function(){scr.remove()},700)},3600);
+  })();
+  </script>
 
   <section id="authScreen" class="auth-screen">
     <div class="auth-shapes">
@@ -49,7 +107,7 @@
     </div>
     <div class="auth-card">
       <div class="auth-quote"><p id="authQuote" class="quote-text">Discipline is choosing what you want most over what you want now.</p></div>
-      <div class="auth-brand"><h1>MSKSphere</h1><p>Your tasks. Your money. Your world.</p></div>
+      <div class="auth-brand"><img src="msk.png" class="auth-logo" alt="MSKSphere"><h1>MSKSphere</h1><p>Your tasks. Your money. Your world.</p></div>
       <div class="auth-tabs">
         <button id="loginTab" class="auth-tab active" onclick="showAuthMode('login')">Login</button>
         <button id="signupTab" class="auth-tab" onclick="showAuthMode('signup')">Sign Up</button>
@@ -102,9 +160,9 @@
     </header>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
+        <img src="msk.png" class="sidebar-logo" alt="MSKSphere" onclick="showMotivationPopup()" style="cursor:pointer" title="Your motivation">
         <h1 onclick="switchView('dashboard', document.querySelector('[data-view=\'dashboard\']'))" style="cursor:pointer">MSKSphere</h1>
         <button class="sidebar-close" onclick="closeMobileMenu()" aria-label="Close menu">✕</button>
-        <span id="headerEmoji" class="header-emoji" onclick="showMotivationPopup()" style="cursor:pointer; display:none">⭐</span>
       </div>
       <div id="motivationPopup" class="motivation-popup">
         <div class="popup-content">
@@ -202,7 +260,7 @@
         </section>
         <div id="calendarGoalsBar" class="calendar-goals-bar"></div>
         <section class="panel day-summary" id="daySummary">
-          <div class="panel-heading"><h3 id="summaryTitle">Select a date</h3><span id="summaryPercentage" class="percentage-pill">—</span></div>
+          <div class="panel-heading"><h3 id="summaryTitle">Select a date</h3><div class="summary-heading-actions"><span id="summaryPercentage" class="percentage-pill">—</span><button class="text-btn" onclick="openTaskModal(selectedDate)">+ Add Task</button></div></div>
           <div id="summaryContent" class="summary-content">Choose any date on the calendar to view its task summary.</div>
           <div id="summaryTaskList" class="summary-task-list"></div>
           <div id="summaryNoteSection" class="summary-note-section" style="display:none;">
@@ -500,6 +558,52 @@
           </div>
         </section>
 
+        <!-- Template Analysis Section -->
+        <section class="panel analytics-section">
+          <div class="panel-heading"><h3>🗂️ Template Analysis</h3></div>
+          <div class="analytics-content">
+            <div class="analytics-stats-row">
+              <div class="analytics-stat-card">
+                <span class="stat-icon">📋</span>
+                <div class="stat-info">
+                  <span class="stat-label">Total Templates</span>
+                  <span class="stat-value" id="templateTotal">0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card">
+                <span class="stat-icon">✨</span>
+                <div class="stat-info">
+                  <span class="stat-label">Tasks from Templates</span>
+                  <span class="stat-value" id="templateTasksCreated">0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card">
+                <span class="stat-icon">📅</span>
+                <div class="stat-info">
+                  <span class="stat-label">Occurrences</span>
+                  <span class="stat-value" id="templateOccurrences">0</span>
+                </div>
+              </div>
+              <div class="analytics-stat-card savings-card">
+                <span class="stat-icon">📈</span>
+                <div class="stat-info">
+                  <span class="stat-label">Avg Completion</span>
+                  <span class="stat-value" id="templateAvgCompletion">0%</span>
+                </div>
+              </div>
+            </div>
+            <div id="templateInsight" class="template-insight neutral">Apply a template to start tracking per-template performance.</div>
+            <div class="chart-section">
+              <h4>Completion by Template (weakest first)</h4>
+              <div id="templateCompletionList" class="template-completion-list"></div>
+            </div>
+            <div class="chart-section">
+              <h4>Tasks per Template</h4>
+              <div id="templateChart" class="simple-bar-chart"></div>
+            </div>
+          </div>
+        </section>
+
         <!-- Expense Analysis Section -->
         <section class="panel analytics-section">
           <div class="panel-heading"><h3>💰 Expense Analysis</h3></div>
@@ -615,15 +719,23 @@
         <section class="panel settings-panel" style="margin-top:20px">
           <div class="panel-heading"><h3>Motivation Settings</h3></div>
           <div class="form-group">
-            <label for="userEmoji">Your Emoji</label>
-            <input type="text" id="userEmoji" placeholder="e.g., 🚀, 💪, ⭐" maxlength="2" style="max-width:100px">
-          </div>
-          <div class="form-group">
             <label for="userMessage">Your Motivational Message</label>
             <input type="text" id="userMessage" placeholder="e.g., You can do it! Keep going!" maxlength="200">
+            <small class="field-help">This message appears as a popup when you click the logo image beside the MSKSphere title in the sidebar.</small>
           </div>
           <div class="settings-actions">
             <button onclick="saveMotivationSettings()">Save Motivation Settings</button>
+          </div>
+        </section>
+        <section class="panel settings-panel" style="margin-top:20px">
+          <div class="panel-heading"><h3>Entry Screen Message</h3></div>
+          <div class="form-group">
+            <label for="entryMessage">Splash Quote</label>
+            <input type="text" id="entryMessage" placeholder="BE BETTER THAN YESTERDAY" maxlength="80">
+            <small class="field-help">Shown on the opening screen. Letters fall into place word by word.</small>
+          </div>
+          <div class="settings-actions">
+            <button onclick="saveEntryMessage()">Save Entry Message</button>
           </div>
         </section>
         <div class="settings-footer">Need help? Contact us at <a href="mailto:msk3official@gmail.com">msk3official@gmail.com</a></div>
@@ -636,6 +748,7 @@
       <div class="modal-header"><h2 id="taskModalTitle">Add New Task</h2><button class="close" onclick="closeTaskModal()" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="form-group"><label for="modalTaskName">Task Name *</label><input type="text" id="modalTaskName" placeholder="Enter task name..."></div>
+        <div class="form-group"><label for="modalTaskDate">Task Date *</label><input type="date" id="modalTaskDate"></div>
         <div class="form-group"><label for="modalTaskPriority">Priority</label><select id="modalTaskPriority"><option value="high">High Priority</option><option value="medium" selected>Medium Priority</option><option value="low">Low Priority</option></select></div>
         <div class="form-group"><label for="modalTaskRepetition">Repetition</label><select id="modalTaskRepetition" onchange="toggleCustomDays()"><option value="once">Once</option><option value="daily">Daily</option><option value="custom">Custom Days</option></select></div>
         <div class="form-group"><label for="modalTaskDueDate">Repeat until (optional)</label><input type="date" id="modalTaskDueDate"><small class="field-help">Daily and Custom Days tasks stop appearing after this date. Leave empty for no end date.</small></div>
@@ -1148,6 +1261,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
   <div id="toastContainer" class="toast-container"></div>
   <script src="js/config.js?v=5" defer></script>
-  <script src="script.min.js?v=63" defer></script>
+  <script src="script.min.js?v=90" defer></script>
 </body>
 </html>

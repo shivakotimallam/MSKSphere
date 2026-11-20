@@ -646,13 +646,16 @@ function getDayStats(dateString) {
   const completed = dayTasks.filter(t => t.completed).length;
   const pending = total - completed;
   const overdue = dayTasks.filter(t => !t.completed && t.due_date && t.due_date < dateString).length;
+  const weights = { high: 3, medium: 2, low: 1 };
+  const totalWeight = dayTasks.reduce((sum, t) => sum + (weights[t.priority] || 2), 0);
+  const completedWeight = dayTasks.filter(t => t.completed).reduce((sum, t) => sum + (weights[t.priority] || 2), 0);
   return {
     tasks: dayTasks,
     total,
     completed,
     pending,
     overdue,
-    percentage: total ? Math.round(completed / total * 100) : 0
+    percentage: totalWeight ? Math.round(completedWeight / totalWeight * 100) : 0
   };
 }
 
@@ -914,12 +917,13 @@ function filterTasks(filter, button) {
 }
 
 // Modal functions
-function openTaskModal() {
+function openTaskModal(date) {
   editingTaskId = null;
   document.getElementById('taskModalTitle').textContent = 'Add New Task';
   document.getElementById('modalTaskName').value = '';
   document.getElementById('modalTaskPriority').value = 'medium';
   document.getElementById('modalTaskRepetition').value = 'once';
+  document.getElementById('modalTaskDate').value = date || localDateString();
   document.getElementById('modalTaskDueDate').value = '';
   document.querySelectorAll('.days-selector input').forEach(c => c.checked = false);
   toggleCustomDays();
@@ -936,6 +940,7 @@ function openEditTaskModal(id) {
   document.getElementById('modalTaskName').value = task.title;
   document.getElementById('modalTaskPriority').value = task.priority || 'medium';
   document.getElementById('modalTaskRepetition').value = task.recurrence_type || 'once';
+  document.getElementById('modalTaskDate').value = task.start_date || localDateString();
   document.getElementById('modalTaskDueDate').value = task.due_date || '';
   document.querySelectorAll('.days-selector input').forEach(c => c.checked = (task.custom_days || []).includes(c.value));
   toggleCustomDays();
@@ -955,10 +960,13 @@ async function saveTaskFromModal() {
   const priority = document.getElementById('modalTaskPriority').value;
   const recurrence = document.getElementById('modalTaskRepetition').value;
   const dueDate = document.getElementById('modalTaskDueDate').value || null;
+  const taskDate = document.getElementById('modalTaskDate').value;
   const customDays = [...document.querySelectorAll('.days-selector input:checked')].map(c => c.value);
 
   if (!text) return showToast('Please enter a task name.');
   if (recurrence === 'custom' && !customDays.length) return showToast('Please select at least one day.');
+  if (!taskDate) return showToast('Please select a task date.');
+  if (dueDate && taskDate > dueDate) return showToast('Task date cannot be after the repeat-until date.');
 
   const saveBtn = document.querySelector('#taskModal .save-btn');
   saveBtn.disabled = true;
@@ -1008,6 +1016,7 @@ async function saveTaskFromModal() {
           priority,
           recurrence_type: recurrence,
           custom_days: customDays,
+          start_date: taskDate,
           due_date: dueDate
         });
         Object.assign(task, updated);
@@ -1019,7 +1028,7 @@ async function saveTaskFromModal() {
         priority,
         recurrence_type: recurrence,
         custom_days: customDays,
-        start_date: localDateString(),
+        start_date: taskDate,
         due_date: dueDate
       });
       tasks.unshift(newTask);
@@ -1029,6 +1038,7 @@ async function saveTaskFromModal() {
     renderTasks();
     updateStats();
     renderCalendar();
+    if (document.getElementById('calendarView').classList.contains('active')) renderDaySummary(selectedDate);
     closeTaskModal();
   } catch (error) {
     showToast('Failed to save task: ' + error.message);
@@ -1178,6 +1188,7 @@ function switchView(view, button) {
     renderGoals();
   } else if (view === 'settings') {
     renderProfile();
+    loadEntryMessageInput();
   }
 
   const titles = {
@@ -1919,18 +1930,21 @@ async function updateTemplate() {
 
 async function deleteCurrentTemplate() {
   if (!currentTemplate) return;
-  if (!confirm(`Delete template "${currentTemplate.name}"? This will also delete all tasks generated from this template.`)) return;
+  if (!confirm(`Delete template "${currentTemplate.name}"? Its tasks will stop appearing from tomorrow, but past records are kept.`)) return;
 
   try {
-    // First, delete all tasks created from this template
+    // Soft-end tasks from this template: set due_date to today so they
+    // stop recurring from tomorrow while past dates keep their data.
+    const today = localDateString();
     const { error: tasksError } = await window.supabase
       .from('tasks')
-      .delete()
-      .eq('source_template_id', currentTemplate.id);
+      .update({ due_date: today })
+      .eq('source_template_id', currentTemplate.id)
+      .or(`due_date.is.null,due_date.gt.${today}`);
 
     if (tasksError) {
-      console.error('Failed to delete tasks from template:', tasksError);
-      // Continue with template deletion even if task deletion fails
+      console.error('Failed to end tasks from template:', tasksError);
+      // Continue with template deletion even if task update fails
     }
 
     // Delete template tasks
@@ -1951,8 +1965,12 @@ async function deleteCurrentTemplate() {
 
     if (error) throw error;
 
-    // Update local data
-    tasks = tasks.filter(t => t.source_template_id !== currentTemplate.id);
+    // Update local data — end template tasks locally too
+    tasks.forEach(t => {
+      if (t.source_template_id === currentTemplate.id && (!t.due_date || t.due_date > today)) {
+        t.due_date = today;
+      }
+    });
     templates = templates.filter(t => t.id !== currentTemplate.id);
     templateTasks = templateTasks.filter(tt => tt.template_id !== currentTemplate.id);
     currentTemplate = null;
@@ -3001,15 +3019,29 @@ async function deleteGoal(goalId) {
   }
 }
 
+function saveEntryMessage() {
+  const msg = document.getElementById('entryMessage').value.trim();
+  if (!msg) return showToast('Please enter an entry message.');
+  localStorage.setItem('entryMessage', msg);
+  window.supabase
+    .from('profiles')
+    .update({ entry_message: msg })
+    .eq('id', currentUser.id)
+    .then(({ error }) => { if (error) console.error('Failed to save entry message:', error); });
+  showToast('Entry message saved!');
+}
+
+function loadEntryMessageInput() {
+  const input = document.getElementById('entryMessage');
+  if (input) input.value = localStorage.getItem('entryMessage') || 'BE BETTER THAN YESTERDAY';
+}
+
 // Motivation Settings Functions
 async function saveMotivationSettings() {
-  const emoji = document.getElementById('userEmoji').value.trim();
   const message = document.getElementById('userMessage').value.trim();
 
-  if (emoji && message) {
-    userEmoji = emoji;
+  if (message) {
     userMessage = message;
-    localStorage.setItem('userEmoji', emoji);
     localStorage.setItem('userMessage', message);
 
     // Save to database for permanent storage
@@ -3017,7 +3049,6 @@ async function saveMotivationSettings() {
       const { error } = await window.supabase
         .from('profiles')
         .update({
-          motivation_emoji: emoji,
           motivation_message: message
         })
         .eq('id', currentUser.id);
@@ -3027,32 +3058,23 @@ async function saveMotivationSettings() {
       console.error('Failed to save motivation settings to database:', error);
     }
 
-    // Update header emoji
-    const headerEmoji = document.getElementById('headerEmoji');
-    headerEmoji.textContent = emoji;
-    headerEmoji.style.display = 'inline-block';
-
     showToast('Motivation settings saved!');
   } else {
-    showToast('Please enter both emoji and message');
+    showToast('Please enter a motivational message');
   }
 }
 
 function showMotivationPopup() {
-  if (!userEmoji || !userMessage) {
-    showToast('Please set your emoji and message in Settings first');
+  if (!userMessage) {
+    showToast('Please set your motivational message in Settings first');
     return;
   }
 
   const popup = document.getElementById('motivationPopup');
   const popupMessage = document.getElementById('popupMessage');
-  const headerEmoji = document.getElementById('headerEmoji');
 
   popupMessage.textContent = userMessage;
-
-  // Add pop animation to header emoji
-  headerEmoji.classList.add('pop');
-  setTimeout(() => headerEmoji.classList.remove('pop'), 500);
+  popupMessage.classList.toggle('long', userMessage.length > 90);
 
   // Show popup
   popup.style.display = 'block';
@@ -3064,8 +3086,6 @@ function showMotivationPopup() {
 }
 
 async function loadMotivationSettings() {
-  const headerEmoji = document.getElementById('headerEmoji');
-  const userEmojiInput = document.getElementById('userEmoji');
   const userMessageInput = document.getElementById('userMessage');
 
   // Try to load from database first
@@ -3077,13 +3097,10 @@ async function loadMotivationSettings() {
       .single();
 
     if (profile) {
-      const dbEmoji = profile.motivation_emoji;
       const dbMessage = profile.motivation_message;
 
-      if (dbEmoji && dbMessage) {
-        userEmoji = dbEmoji;
+      if (dbMessage) {
         userMessage = dbMessage;
-        localStorage.setItem('userEmoji', dbEmoji);
         localStorage.setItem('userMessage', dbMessage);
       }
     }
@@ -3092,15 +3109,11 @@ async function loadMotivationSettings() {
   }
 
   // Fallback to localStorage if database doesn't have values
-  if (!userEmoji || !userMessage) {
-    userEmoji = localStorage.getItem('userEmoji') || '';
+  if (!userMessage) {
     userMessage = localStorage.getItem('userMessage') || '';
   }
 
-  if (userEmoji && userMessage) {
-    headerEmoji.textContent = userEmoji;
-    headerEmoji.style.display = 'inline-block';
-    userEmojiInput.value = userEmoji;
+  if (userMessageInput && userMessage) {
     userMessageInput.value = userMessage;
   }
 }
@@ -4312,6 +4325,7 @@ function updateAnalytics() {
   updateTaskAnalysis(startDate, endDate);
   updateExpenseAnalysis(startDate, endDate);
   updateStudyAnalysis(startDate, endDate);
+  updateTemplateAnalysis(startDate, endDate);
 }
 
 function updateOverviewCards(startDate, endDate) {
@@ -5400,6 +5414,90 @@ async function deleteStudySession(id) {
   } catch (error) {
     showToast('Failed to delete session: ' + error.message);
   }
+}
+
+function updateTemplateAnalysis(startDate, endDate) {
+  const el = id => document.getElementById(id);
+  if (!el('templateTotal')) return;
+
+  const taskDates = getDateRange(startDate, endDate);
+  const taskById = {};
+  tasks.forEach(t => { taskById[t.id] = t; });
+
+  const templateInfo = {};
+  templates.forEach(t => { templateInfo[t.id] = { name: t.name || 'Untitled', icon: t.icon || '📋' }; });
+
+  const stats = {};
+  taskDates.forEach(date => {
+    getDayTasks(date).forEach(dt => {
+      const orig = taskById[dt.id];
+      if (!orig || orig.task_source !== 'template' || !orig.source_template_id) return;
+      const tid = orig.source_template_id;
+      if (!stats[tid]) stats[tid] = { occ: 0, done: 0 };
+      stats[tid].occ++;
+      if (dt.completed) stats[tid].done++;
+    });
+  });
+
+  const createdCount = {};
+  tasks.forEach(t => {
+    if (t.task_source === 'template' && t.source_template_id) {
+      createdCount[t.source_template_id] = (createdCount[t.source_template_id] || 0) + 1;
+    }
+  });
+
+  const totalOcc = Object.values(stats).reduce((a, s) => a + s.occ, 0);
+  const totalDone = Object.values(stats).reduce((a, s) => a + s.done, 0);
+
+  el('templateTotal').textContent = templates.length;
+  el('templateTasksCreated').textContent = Object.values(createdCount).reduce((a, b) => a + b, 0);
+  el('templateOccurrences').textContent = totalOcc;
+  el('templateAvgCompletion').textContent = totalOcc ? Math.round(totalDone / totalOcc * 100) + '%' : '0%';
+
+  const rows = Object.entries(stats)
+    .map(([tid, s]) => {
+      const info = templateInfo[tid] || { name: 'Deleted Template', icon: '🗑️' };
+      return {
+        name: info.name, icon: info.icon, occ: s.occ, done: s.done,
+        pct: s.occ ? Math.round(s.done / s.occ * 100) : 0,
+        created: createdCount[tid] || 0
+      };
+    })
+    .sort((a, b) => a.pct - b.pct || b.occ - a.occ);
+
+  const insightEl = el('templateInsight');
+  if (insightEl) {
+    if (!rows.length) {
+      insightEl.textContent = 'No template-based tasks in this period. Apply a template to start tracking.';
+      insightEl.className = 'template-insight neutral';
+    } else {
+      const weakest = rows[0];
+      const strongest = rows[rows.length - 1];
+      let msg = `Weakest: ${weakest.icon} ${escapeHtml(weakest.name)} (${weakest.pct}% of ${weakest.occ} occurrences) — focus here. `;
+      if (rows.length > 1) msg += `Strongest: ${strongest.icon} ${escapeHtml(strongest.name)} (${strongest.pct}%).`;
+      insightEl.textContent = msg;
+      insightEl.className = 'template-insight ' + (weakest.pct < 50 ? 'warning' : 'info');
+    }
+  }
+
+  const listEl = el('templateCompletionList');
+  if (listEl) {
+    listEl.innerHTML = rows.length ? rows.map(r => `
+      <div class="template-stat-row">
+        <span class="template-stat-name">${r.icon} ${escapeHtml(r.name)}</span>
+        <span class="template-stat-meta">${r.done}/${r.occ} done · ${r.created} created</span>
+        <span class="template-stat-pct ${r.pct >= 75 ? 'good' : r.pct >= 50 ? 'mid' : 'low'}">${r.pct}%</span>
+      </div>
+    `).join('') : '<p style="color:#999;font-size:12px;text-align:center;padding:16px;">No template tasks in this period.</p>';
+  }
+
+  const palette = ['#128C7E', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1'];
+  const chartRows = [...rows].sort((a, b) => b.occ - a.occ).slice(0, 8);
+  renderSimpleBarChart('templateChart', chartRows.map((r, i) => ({
+    label: `${r.icon} ${r.name}`.slice(0, 22),
+    value: r.occ,
+    color: palette[i % palette.length]
+  })));
 }
 
 function updateStudyAnalysis(startDate, endDate) {
