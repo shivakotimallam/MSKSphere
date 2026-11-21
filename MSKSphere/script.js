@@ -1785,7 +1785,7 @@ function renderTemplateTasks() {
   }
 
   // Sort by start time
-  tasks.sort((a, b) => a.start_time.localeCompare(b.start_time));
+  tasks.sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'));
 
   container.innerHTML = tasks.map(task => {
     const priority = task.priority || 'medium';
@@ -1794,7 +1794,7 @@ function renderTemplateTasks() {
     <li class="template-task-item">
       <div class="template-task-info">
         <div class="template-task-name">${escapeHtml(task.task_name)}</div>
-        <div class="template-task-time">${formatTime(task.start_time)} - ${formatTime(task.end_time)}</div>
+        <div class="template-task-time">${task.start_time && task.end_time ? `${formatTime(task.start_time)} - ${formatTime(task.end_time)}` : 'No fixed time'}</div>
         <div class="template-task-days">${(task.selected_days || []).map(d => d.slice(0, 3)).join(', ')}</div>
       </div>
       <div class="template-task-actions">
@@ -1807,6 +1807,7 @@ function renderTemplateTasks() {
 }
 
 function formatTime(time) {
+  if (!time) return '';
   const [hours, minutes] = time.split(':');
   const hour = parseInt(hours);
   const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -2009,8 +2010,8 @@ function openEditTemplateTaskModal(taskId) {
   document.getElementById('templateTaskModalTitle').textContent = 'Edit Task';
   document.getElementById('templateTaskName').value = task.task_name;
   document.getElementById('templateTaskPriority').value = task.priority || 'medium';
-  document.getElementById('templateTaskStartTime').value = task.start_time;
-  document.getElementById('templateTaskEndTime').value = task.end_time;
+  document.getElementById('templateTaskStartTime').value = task.start_time || '';
+  document.getElementById('templateTaskEndTime').value = task.end_time || '';
   document.querySelectorAll('#addTemplateTaskModal .days-selector input').forEach(c => {
     c.checked = (task.selected_days || []).includes(c.value);
   });
@@ -2028,12 +2029,13 @@ async function saveTemplateTask() {
   const selectedDays = [...document.querySelectorAll('#addTemplateTaskModal .days-selector input:checked')].map(c => c.value);
 
   if (!taskName) return showToast('Please enter a task name.');
-  if (!startTime) return showToast('Please select a start time.');
-  if (!endTime) return showToast('Please select an end time.');
   if (!selectedDays.length) return showToast('Please select at least one day.');
+  if ((startTime && !endTime) || (!startTime && endTime)) {
+    return showToast('Please select both start and end time, or leave both empty.');
+  }
 
   // Validate time range
-  if (startTime >= endTime) {
+  if (startTime && endTime && startTime >= endTime) {
     document.getElementById('templateTaskError').textContent = 'End time must be later than start time.';
     document.getElementById('templateTaskError').hidden = false;
     return;
@@ -2048,7 +2050,7 @@ async function saveTemplateTask() {
   for (const existing of existingTasks) {
     if (!existing.selected_days || !Array.isArray(existing.selected_days)) continue;
     const overlappingDays = existing.selected_days.filter(day => selectedDays.includes(day));
-    if (overlappingDays.length > 0) {
+    if (overlappingDays.length > 0 && startTime && endTime && existing.start_time && existing.end_time) {
       // Check time overlap
       if (!(endTime <= existing.start_time || startTime >= existing.end_time)) {
         document.getElementById('templateTaskError').textContent = `This task overlaps with "${existing.task_name}" on ${overlappingDays.join(', ')}.`;
@@ -2069,8 +2071,8 @@ async function saveTemplateTask() {
         .update({
           task_name: taskName,
           priority: priority,
-          start_time: startTime,
-          end_time: endTime,
+          start_time: startTime || null,
+          end_time: endTime || null,
           selected_days: selectedDays
         })
         .eq('id', editingTemplateTaskId)
@@ -2089,8 +2091,8 @@ async function saveTemplateTask() {
           user_id: currentUser.id,
           task_name: taskName,
           priority: priority,
-          start_time: startTime,
-          end_time: endTime,
+          start_time: startTime || null,
+          end_time: endTime || null,
           selected_days: selectedDays
         })
         .select()
@@ -2209,7 +2211,7 @@ function generateImportPreview() {
   }
 
   // Sort by start time
-  sourceTasks.sort((a, b) => a.start_time.localeCompare(b.start_time));
+  sourceTasks.sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'));
 
   let html = '<h4>Tasks to Import</h4>';
   sourceTasks.forEach(task => {
@@ -2217,7 +2219,7 @@ function generateImportPreview() {
       <div class="import-preview-task">
         <span class="import-preview-task-icon">${sourceTemplate.icon}</span>
         <span class="import-preview-task-name">${escapeHtml(task.task_name)}</span>
-        <span class="import-preview-task-time">${formatTime(task.start_time)} - ${formatTime(task.end_time)}</span>
+        <span class="import-preview-task-time">${task.start_time && task.end_time ? `${formatTime(task.start_time)} - ${formatTime(task.end_time)}` : 'No fixed time'}</span>
       </div>
       <div style="font-size:11px;color:#666;margin-top:4px;">${(task.selected_days || []).map(d => d.slice(0, 3)).join(', ')}</div>
     </div>`;
@@ -2258,7 +2260,7 @@ async function importTemplateTasks() {
         if (!existing.selected_days || !Array.isArray(existing.selected_days)) continue;
         if (!task.selected_days || !Array.isArray(task.selected_days)) continue;
         const overlappingDays = existing.selected_days.filter(day => task.selected_days.includes(day));
-        if (overlappingDays.length > 0) {
+        if (overlappingDays.length > 0 && task.start_time && task.end_time && existing.start_time && existing.end_time) {
           if (!(task.end_time <= existing.start_time || task.start_time >= existing.end_time)) {
             hasOverlap = true;
             break;
@@ -2279,8 +2281,8 @@ async function importTemplateTasks() {
           user_id: currentUser.id,
           task_name: task.task_name,
           priority: task.priority || 'medium',
-          start_time: task.start_time,
-          end_time: task.end_time,
+          start_time: task.start_time || null,
+          end_time: task.end_time || null,
           selected_days: task.selected_days
         })
         .select()
@@ -2386,7 +2388,7 @@ function generateApplyPreview() {
       html += `<div class="apply-preview-task">
         <span class="apply-preview-task-icon">${currentTemplate.icon}</span>
         <span class="apply-preview-task-name">${escapeHtml(task.task_name)}</span>
-        <span class="apply-preview-task-time">${formatTime(task.start_time)} - ${formatTime(task.end_time)}</span>
+        <span class="apply-preview-task-time">${task.start_time && task.end_time ? `${formatTime(task.start_time)} - ${formatTime(task.end_time)}` : 'No fixed time'}</span>
       </div>`;
     });
     html += '</div>';

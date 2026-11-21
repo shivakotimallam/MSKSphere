@@ -511,6 +511,7 @@ li.completed .task-text { text-decoration:line-through;
 .delete-btn:hover { background:#b91c1c; }
 @media(max-width:900px) { .dashboard-grid { grid-template-columns:1fr; } .main-content { padding:22px; } }
 @media(max-width:768px) {
+    .main-content { background-size:cover; background-position:center center; }
   .mobile-menu-toggle { display:block; }
   .app-container { flex-direction:column; }
   .sidebar { width:100%; height:auto;

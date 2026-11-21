@@ -55,8 +55,8 @@
     @keyframes lotusFadeIn{0%{opacity:0;transform:scale(.85) translateY(-20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes titleFade{0%,70%{opacity:0}100%{opacity:.85}}
   </style>
-  <link rel="preload" href="styles.min.css?v=90" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="styles.min.css?v=90"></noscript>
+  <link rel="preload" href="styles.min.css?v=91" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="styles.min.css?v=91"></noscript>
 </head>
 <body>
 
@@ -993,13 +993,13 @@
             <option value="low">Low Priority</option>
           </select>
         </div>
-        <div class="form-group"><span class="form-label">Start Time *</span>
+        <div class="form-group"><span class="form-label">Start Time <small>(optional)</small></span>
           <div class="time-picker-wrapper">
             <input type="time" id="templateTaskStartTime" class="time-input">
             <button type="button" class="time-picker-btn" onclick="openTimePicker('start')">🕐 Pick Time</button>
           </div>
         </div>
-        <div class="form-group"><span class="form-label">End Time *</span>
+        <div class="form-group"><span class="form-label">End Time <small>(optional)</small></span>
           <div class="time-picker-wrapper">
             <input type="time" id="templateTaskEndTime" class="time-input">
             <button type="button" class="time-picker-btn" onclick="openTimePicker('end')">🕐 Pick Time</button>

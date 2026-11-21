@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS template_tasks (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   task_name TEXT NOT NULL,
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
-  start_time TEXT NOT NULL, -- Format: HH:MM
-  end_time TEXT NOT NULL, -- Format: HH:MM
+  start_time TEXT, -- Format: HH:MM (nullable = no fixed time)
+  end_time TEXT, -- Format: HH:MM (nullable = no fixed time)
   selected_days TEXT[] NOT NULL, -- Array of day names: ['Monday', 'Tuesday', etc.]
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
