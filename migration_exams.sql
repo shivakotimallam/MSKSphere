@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS exams (
   name TEXT NOT NULL,
   subject TEXT,
   exam_date DATE NOT NULL,
-  start_time TEXT NOT NULL, -- Format: HH:MM
+  start_time TEXT,            -- Format: HH:MM (optional)
   end_time TEXT,             -- Format: HH:MM (optional)
   exam_type TEXT CHECK (exam_type IN ('Mid-I', 'Mid-II', 'Internals (Lab)', 'Externals (Lab)', 'Semester', 'Other')),
   notes TEXT,

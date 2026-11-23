@@ -48,7 +48,7 @@ let transactions = [];
 let editingTransactionId = null;
 let lentMoney = [];
 let exams = [];
-let examFilter = 'all';
+let examFilter = 'upcoming';
 let editingExamId = null;
 let subjects = [];
 let subjectUnits = [];
@@ -769,6 +769,25 @@ function updateConsistencyAnalytics() {
   document.getElementById('avgCompletion').textContent = `${avgCompletion}%`;
   document.getElementById('bestStreak').textContent = `${bestStreak} days`;
   document.getElementById('consistencyScore').textContent = consistencyScore;
+  animateConsistencyStats();
+}
+
+function animateConsistencyStats() {
+  [['avgCompletion', '%'], ['bestStreak', ' days'], ['consistencyScore', ''], ['totalStreak', '']].forEach(([id, suffix], idx) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const target = parseFloat((el.textContent || '').replace(/,/g, '')) || 0;
+    const duration = 900;
+    const delay = idx * 80;
+    const start = performance.now() + delay;
+    const step = now => {
+      const p = Math.min(1, Math.max(0, (now - start) / duration));
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased) + suffix;
+      if (p < 1) requestAnimationFrame(step);
+    };
+    setTimeout(() => requestAnimationFrame(step), delay);
+  });
 }
 
 
@@ -1694,17 +1713,17 @@ function renderConsistencyChart() {
     const lastNonNull = points.filter(p => p !== null).pop();
     if (lastNonNull) {
       fillPath += ` L ${lastNonNull[0]} ${y(0)} Z`;
-      svgMarkup += `<path d="${fillPath}" fill="url(#gradient)" opacity="0.3"></path>`;
+      svgMarkup += `<path class="chart-area-anim" d="${fillPath}" fill="url(#gradient)" opacity="0.3"></path>`;
     }
 
-    svgMarkup += `<path d="${linePath}" class="chart-line" fill="none"></path>`;
+    svgMarkup += `<path d="${linePath}" class="chart-line chart-line-anim" fill="none" pathLength="100"></path>`;
 
     // Add points
     points.forEach((p, i) => {
       if (p) {
         const value = values[i];
         const color = value > 75 ? '#25D366' : value >= 50 ? '#ffc107' : '#dc3545';
-        svgMarkup += `<circle class="chart-point" cx="${p[0]}" cy="${p[1]}" r="6" fill="${color}" stroke="white" stroke-width="2"><title>${dates[i]}: ${value}%</title></circle>`;
+        svgMarkup += `<circle class="chart-point chart-point-anim" style="animation-delay:${i * 90 + 250}ms" cx="${p[0]}" cy="${p[1]}" r="6" fill="${color}" stroke="white" stroke-width="2"><title>${dates[i]}: ${value}%</title></circle>`;
       }
     });
   }
@@ -4452,18 +4471,38 @@ function renderSimpleBarChart(containerId, data) {
   
   const maxValue = Math.max(...data.map(d => d.value));
   
-  container.innerHTML = data.map(item => {
+  container.innerHTML = data.map((item, i) => {
     const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
+    const numeric = typeof item.value === 'number';
     return `
-      <div class="bar-item">
+      <div class="bar-item" style="animation-delay:${i * 80}ms">
         <span class="bar-label">${item.label}</span>
         <div class="bar-wrapper">
-          <div class="bar-fill" style="width:${percentage}%; background:${item.color}"></div>
+          <div class="bar-fill" data-width="${percentage}%" style="width:0%; background:${item.color}"></div>
         </div>
-        <span class="bar-value">${typeof item.value === 'number' ? item.value.toFixed(0) : item.value}</span>
+        <span class="bar-value">${numeric ? `<span class="bar-value-num" data-value="${item.value}">0</span>` : item.value}</span>
       </div>
     `;
   }).join('');
+
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.bar-fill').forEach((el, i) => {
+      el.style.transitionDelay = `${i * 90}ms`;
+      requestAnimationFrame(() => { el.style.width = el.dataset.width; });
+    });
+    container.querySelectorAll('.bar-value-num').forEach((el, i) => {
+      const target = parseFloat(el.dataset.value) || 0;
+      const duration = 800;
+      const start = performance.now() + i * 90;
+      const step = now => {
+        const p = Math.min(1, Math.max(0, (now - start) / duration));
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(target * eased);
+        if (p < 1) requestAnimationFrame(step);
+      };
+      setTimeout(() => requestAnimationFrame(step), i * 90 + 350);
+    });
+  });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -4574,8 +4613,29 @@ function filterExams(filter, btn) {
   renderExams();
 }
 
+function updateExamCountdown() {
+  const el = document.getElementById('examCountdown');
+  if (!el) return;
+  const todayStr = localDateString();
+  const upcoming = exams
+    .filter(e => e.exam_date >= todayStr)
+    .sort((a, b) => a.exam_date.localeCompare(b.exam_date));
+  if (!upcoming.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const exam = upcoming[0];
+  const status = examStatus(exam);
+  const name = escapeHtml(exam.name || 'Exam');
+  let msg, cls = '';
+  if (status === 'today') { msg = `🔥 ${name} is TODAY — you've got this!`; cls = 'urgent'; }
+  else if (status === 'tomorrow') { msg = `⏰ ${name} is TOMORROW — final push!`; cls = 'urgent'; }
+  else { msg = `🎯 ${name} — ${examDaysLeft(exam)} days left. Stay focused!`; }
+  el.className = 'exam-countdown' + (cls ? ' ' + cls : '');
+  el.innerHTML = msg;
+  el.hidden = false;
+}
+
 function renderExams() {
   updateExamStats();
+  updateExamCountdown();
   const container = document.getElementById('examsList');
   if (!container) return;
 
@@ -4662,7 +4722,6 @@ function openExamModal() {
   document.getElementById('examDate').value = '';
   document.getElementById('examStartTime').value = '';
   document.getElementById('examEndTime').value = '';
-  document.getElementById('examType').value = '';
   document.getElementById('examSubject').value = '';
   document.getElementById('examNotes').value = '';
   document.getElementById('examError').hidden = true;
@@ -4680,7 +4739,6 @@ function openEditExamModal(id) {
   document.getElementById('examDate').value = exam.exam_date || '';
   document.getElementById('examStartTime').value = exam.start_time || '';
   document.getElementById('examEndTime').value = exam.end_time || '';
-  document.getElementById('examType').value = exam.exam_type || '';
   document.getElementById('examSubject').value = exam.subject_id || '';
   document.getElementById('examNotes').value = exam.notes || '';
   document.getElementById('examError').hidden = true;
@@ -4703,14 +4761,13 @@ async function saveExam() {
   const examDate = document.getElementById('examDate').value;
   const startTime = document.getElementById('examStartTime').value;
   const endTime = document.getElementById('examEndTime').value;
-  const examType = document.getElementById('examType').value;
   const notes = document.getElementById('examNotes').value.trim();
 
   document.getElementById('examError').hidden = true;
   if (!name) return showExamError('Please enter an exam name.');
   if (!examDate || isNaN(new Date(examDate + 'T00:00:00').getTime())) return showExamError('Please select a valid exam date.');
-  if (!startTime) return showExamError('Please select a start time.');
-  if (endTime && endTime <= startTime) return showExamError('End time must be later than the start time.');
+  if ((startTime && !endTime) || (!startTime && endTime)) return showExamError('Please select both start and end time, or leave both empty.');
+  if (startTime && endTime && endTime <= startTime) return showExamError('End time must be later than the start time.');
 
   const saveBtn = document.querySelector('#examModal .save-btn');
   saveBtn.disabled = true;
@@ -4720,9 +4777,8 @@ async function saveExam() {
     const payload = {
       name,
       exam_date: examDate,
-      start_time: startTime,
+      start_time: startTime || null,
       end_time: endTime || null,
-      exam_type: examType || null,
       subject_id: document.getElementById('examSubject').value || null,
       notes: notes || null
     };

@@ -55,8 +55,8 @@
     @keyframes lotusFadeIn{0%{opacity:0;transform:scale(.85) translateY(-20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes titleFade{0%,70%{opacity:0}100%{opacity:.85}}
   </style>
-  <link rel="preload" href="styles.min.css?v=91" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="styles.min.css?v=91"></noscript>
+  <link rel="preload" href="styles.min.css?v=95" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="styles.min.css?v=95"></noscript>
 </head>
 <body>
 
@@ -289,10 +289,11 @@
         <div id="studyExamsSection" hidden>
         <section class="panel">
           <div class="panel-heading"><h3>My Exams</h3><button onclick="openExamModal()">+ Add Exam</button></div>
+          <div id="examCountdown" class="exam-countdown" hidden></div>
           <div class="toolbar exams-toolbar">
             <div class="filters">
-              <button class="filter-btn active" onclick="filterExams('all', this)">All</button>
-              <button class="filter-btn" onclick="filterExams('upcoming', this)">Upcoming</button>
+              <button class="filter-btn" onclick="filterExams('all', this)">All</button>
+              <button class="filter-btn active" onclick="filterExams('upcoming', this)">Upcoming</button>
               <button class="filter-btn" onclick="filterExams('today', this)">Today</button>
               <button class="filter-btn" onclick="filterExams('completed', this)">Completed</button>
             </div>
@@ -904,19 +905,8 @@
         <div class="form-group"><label for="examName">Exam Name *</label><input type="text" id="examName" placeholder="e.g., Mathematics Mid-I"></div>
         <div class="form-group"><label for="examDate">Exam Date *</label><input type="date" id="examDate"></div>
         <div class="form-group exam-time-row">
-          <div><label for="examStartTime">Start Time *</label><input type="time" id="examStartTime"></div>
-          <div><label for="examEndTime">End Time</label><input type="time" id="examEndTime"></div>
-        </div>
-        <div class="form-group"><label for="examType">Exam Type</label>
-          <select id="examType">
-            <option value="">Select type</option>
-            <option value="Mid-I">Mid-I</option>
-            <option value="Mid-II">Mid-II</option>
-            <option value="Internals (Lab)">Internals (Lab)</option>
-            <option value="Externals (Lab)">Externals (Lab)</option>
-            <option value="Semester">Semester</option>
-            <option value="Other">Other</option>
-          </select>
+          <div><label for="examStartTime">Start Time <small>(optional)</small></label><input type="time" id="examStartTime"></div>
+          <div><label for="examEndTime">End Time <small>(optional)</small></label><input type="time" id="examEndTime"></div>
         </div>
         <div class="form-group"><label for="examSubject">Select Subject</label><select id="examSubject"><option value="">None / Not Linked</option></select></div>
         <div class="form-group"><label for="examNotes">Notes</label><textarea id="examNotes" rows="3" placeholder="Any additional details about this exam..."></textarea></div>
@@ -1261,6 +1251,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
   <div id="toastContainer" class="toast-container"></div>
   <script src="js/config.js?v=5" defer></script>
-  <script src="script.min.js?v=90" defer></script>
+  <script src="script.min.js?v=95" defer></script>
 </body>
 </html>
