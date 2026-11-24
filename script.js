@@ -3108,29 +3108,31 @@ function showMotivationPopup() {
 
 async function loadMotivationSettings() {
   const userMessageInput = document.getElementById('userMessage');
+  let dbLoaded = false;
 
   // Try to load from database first
   try {
     const { data: profile } = await window.supabase
       .from('profiles')
-      .select('motivation_emoji, motivation_message')
+      .select('motivation_message')
       .eq('id', currentUser.id)
       .single();
 
     if (profile) {
-      const dbMessage = profile.motivation_message;
-
-      if (dbMessage) {
-        userMessage = dbMessage;
-        localStorage.setItem('userMessage', dbMessage);
+      dbLoaded = true;
+      userMessage = profile.motivation_message || '';
+      if (userMessage) {
+        localStorage.setItem('userMessage', userMessage);
+      } else {
+        localStorage.removeItem('userMessage');
       }
     }
   } catch (error) {
     console.error('Failed to load motivation settings from database:', error);
   }
 
-  // Fallback to localStorage if database doesn't have values
-  if (!userMessage) {
+  // Fallback to localStorage only if database couldn't be read
+  if (!dbLoaded) {
     userMessage = localStorage.getItem('userMessage') || '';
   }
 
