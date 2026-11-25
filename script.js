@@ -68,33 +68,12 @@ let selectedHour = 9;
 let selectedMinute = 0;
 let isPM = false;
 
-// Rebuild the splash quote letters with the given message if the splash is still visible
+// Render the splash quote with the given message if the splash is still visible.
+// Uses the renderer defined by the inline splash script in index.html.
 function refreshSplashQuote(message) {
   const splash = document.getElementById('splashScreen');
-  const quoteEl = document.getElementById('splashQuote');
-  if (!splash || !quoteEl || splash.classList.contains('hide')) return;
-  const text = (message || 'BE BETTER THAN YESTERDAY').toUpperCase();
-  quoteEl.innerHTML = '';
-  let li = 0;
-  text.split(' ').forEach(function (word) {
-    const w = document.createElement('span');
-    w.className = 'splash-word';
-    for (let c = 0; c < word.length; c++) {
-      const s = document.createElement('span');
-      s.className = 'splash-letter';
-      s.textContent = word[c];
-      s.style.animationDelay = (0.05 + li * 0.06).toFixed(2) + 's';
-      s.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
-      li++;
-      w.appendChild(s);
-    }
-    quoteEl.appendChild(w);
-  });
-  // Restart the hide timer so the loaded quote gets its full animation
-  if (window.__hideSplash) {
-    clearTimeout(window.__splashHideTimer);
-    window.__splashHideTimer = setTimeout(window.__hideSplash, 3600);
-  }
+  if (!splash || splash.classList.contains('hide') || !window.__renderSplashQuote) return;
+  window.__renderSplashQuote((message || 'BE BETTER THAN YESTERDAY').trim() || 'BE BETTER THAN YESTERDAY');
 }
 
 // Utility functions
@@ -4592,6 +4571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadUserData();
     enterApp();
   } else {
+    refreshSplashQuote('BE BETTER THAN YESTERDAY');
     document.getElementById('authScreen').hidden = false;
     showAuthMode('login');
   }

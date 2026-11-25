@@ -72,27 +72,34 @@
   <script>
   (function(){
     var scr=document.getElementById('splashScreen'),
-        q=document.getElementById('splashQuote'),
-        text='BE BETTER THAN YESTERDAY',
-        i=0;
-    var li=0;
-    text.split(' ').forEach(function(word){
-      var w=document.createElement('span');
-      w.className='splash-word';
-      for(var c=0;c<word.length;c++){
-        var s=document.createElement('span');
-        s.className='splash-letter';
-        s.textContent=word[c];
-        s.style.animationDelay=(0.05+li*0.06).toFixed(2)+'s';
-        s.style.setProperty('--tilt',(Math.random()*16-8).toFixed(1)+'deg');
-        li++;
-        w.appendChild(s);
-      }
-      q.appendChild(w);
-    });
+        q=document.getElementById('splashQuote');
     function hideSplash(){scr.classList.add('hide');setTimeout(function(){scr.remove()},700)}
+    function renderSplash(text){
+      q.innerHTML='';
+      var li=0;
+      text.toUpperCase().split(' ').forEach(function(word){
+        var w=document.createElement('span');
+        w.className='splash-word';
+        for(var c=0;c<word.length;c++){
+          var s=document.createElement('span');
+          s.className='splash-letter';
+          s.textContent=word[c];
+          s.style.animationDelay=(0.05+li*0.06).toFixed(2)+'s';
+          s.style.setProperty('--tilt',(Math.random()*16-8).toFixed(1)+'deg');
+          li++;
+          w.appendChild(s);
+        }
+        q.appendChild(w);
+      });
+      clearTimeout(window.__splashHideTimer);
+      window.__splashHideTimer=setTimeout(hideSplash,3600);
+    }
+    window.__renderSplashQuote=renderSplash;
     window.__hideSplash=hideSplash;
-    window.__splashHideTimer=setTimeout(hideSplash,5000);
+    // Failsafe: never leave the splash up forever
+    window.__splashHideTimer=setTimeout(hideSplash,9000);
+    // If the app script never fills the quote, show the default
+    setTimeout(function(){if(!q.children.length)renderSplash('BE BETTER THAN YESTERDAY')},2500);
   })();
   </script>
 
@@ -1253,6 +1260,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
   <div id="toastContainer" class="toast-container"></div>
   <script src="js/config.js?v=5" defer></script>
-  <script src="script.min.js?v=98" defer></script>
+  <script src="script.min.js?v=99" defer></script>
 </body>
 </html>
