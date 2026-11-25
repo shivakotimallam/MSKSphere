@@ -3074,16 +3074,22 @@ async function deleteGoal(goalId) {
   }
 }
 
-function saveEntryMessage() {
+async function saveEntryMessage() {
   const msg = document.getElementById('entryMessage').value.trim();
   if (!msg) return showToast('Please enter an entry message.');
-  refreshSplashQuote(msg);
-  window.supabase
-    .from('profiles')
-    .update({ entry_message: msg })
-    .eq('id', currentUser.id)
-    .then(({ error }) => { if (error) console.error('Failed to save entry message:', error); });
-  showToast('Entry message saved!');
+  try {
+    const { error } = await window.supabase
+      .from('profiles')
+      .update({ entry_message: msg })
+      .eq('id', currentUser.id);
+    if (error) throw error;
+    if (userProfile) userProfile.entry_message = msg;
+    refreshSplashQuote(msg);
+    showToast('Entry message saved!');
+  } catch (error) {
+    console.error('Failed to save entry message:', error);
+    showToast('Failed to save entry message: ' + (error.message || 'database error'));
+  }
 }
 
 function loadEntryMessageInput() {
@@ -3108,8 +3114,11 @@ async function saveMotivationSettings() {
         .eq('id', currentUser.id);
 
       if (error) throw error;
+      if (userProfile) userProfile.motivation_message = message;
     } catch (error) {
       console.error('Failed to save motivation settings to database:', error);
+      showToast('Failed to save: ' + (error.message || 'database error'));
+      return;
     }
 
     showToast('Motivation settings saved!');
