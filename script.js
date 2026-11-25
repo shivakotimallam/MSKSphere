@@ -3078,11 +3078,13 @@ async function saveEntryMessage() {
   const msg = document.getElementById('entryMessage').value.trim();
   if (!msg) return showToast('Please enter an entry message.');
   try {
-    const { error } = await window.supabase
+    const { data, error } = await window.supabase
       .from('profiles')
       .update({ entry_message: msg })
-      .eq('id', currentUser.id);
+      .eq('id', currentUser.id)
+      .select('id');
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error('No profile row found for this account');
     if (userProfile) userProfile.entry_message = msg;
     refreshSplashQuote(msg);
     showToast('Entry message saved!');
@@ -3106,14 +3108,16 @@ async function saveMotivationSettings() {
 
     // Save to database for permanent storage
     try {
-      const { error } = await window.supabase
+      const { data, error } = await window.supabase
         .from('profiles')
         .update({
           motivation_message: message
         })
-        .eq('id', currentUser.id);
+        .eq('id', currentUser.id)
+        .select('id');
 
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error('No profile row found for this account');
       if (userProfile) userProfile.motivation_message = message;
     } catch (error) {
       console.error('Failed to save motivation settings to database:', error);
