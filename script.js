@@ -36,8 +36,7 @@ let calendarDate = new Date();
 let selectedDate = localDateString(new Date());
 let templates = [];
 let templateTasks = [];
-let userEmoji = localStorage.getItem('userEmoji') || '';
-let userMessage = localStorage.getItem('userMessage') || '';
+let userMessage = '';
 let currentTemplate = null;
 let editingTemplateTaskId = null;
 let goals = [];
@@ -68,6 +67,35 @@ let timePickerMode = 'hour'; // 'hour' or 'minute'
 let selectedHour = 9;
 let selectedMinute = 0;
 let isPM = false;
+
+// Rebuild the splash quote letters with the given message if the splash is still visible
+function refreshSplashQuote(message) {
+  const splash = document.getElementById('splashScreen');
+  const quoteEl = document.getElementById('splashQuote');
+  if (!splash || !quoteEl || splash.classList.contains('hide')) return;
+  const text = (message || 'BE BETTER THAN YESTERDAY').toUpperCase();
+  quoteEl.innerHTML = '';
+  let li = 0;
+  text.split(' ').forEach(function (word) {
+    const w = document.createElement('span');
+    w.className = 'splash-word';
+    for (let c = 0; c < word.length; c++) {
+      const s = document.createElement('span');
+      s.className = 'splash-letter';
+      s.textContent = word[c];
+      s.style.animationDelay = (0.05 + li * 0.06).toFixed(2) + 's';
+      s.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
+      li++;
+      w.appendChild(s);
+    }
+    quoteEl.appendChild(w);
+  });
+  // Restart the hide timer so the loaded quote gets its full animation
+  if (window.__hideSplash) {
+    clearTimeout(window.__splashHideTimer);
+    window.__splashHideTimer = setTimeout(window.__hideSplash, 3600);
+  }
+}
 
 // Utility functions
 function localDateString(date = new Date()) {
@@ -423,7 +451,7 @@ async function loadUserData() {
   // Load profile
   const { data: profile } = await window.supabase
     .from('profiles')
-    .select('id,full_name,created_at,updated_at')
+    .select('id,full_name,created_at,updated_at,entry_message')
     .eq('id', user.id)
     .single();
 
@@ -447,6 +475,9 @@ async function loadUserData() {
   } else {
     userProfile = profile;
   }
+
+  // Apply this user's entry message so the splash quote is per-account
+  refreshSplashQuote((profile?.entry_message || '').trim() || 'BE BETTER THAN YESTERDAY');
 
   // Load essential data first (tasks and completions) for faster initial load
   // Only select needed columns to reduce data transfer
@@ -547,6 +578,9 @@ async function loadUserData() {
 
   // Load motivation settings from database
   await loadMotivationSettings();
+
+  // Populate expense category dropdowns from saved transactions
+  loadCustomCategories();
 }
 
 function enterApp() {
@@ -3043,7 +3077,7 @@ async function deleteGoal(goalId) {
 function saveEntryMessage() {
   const msg = document.getElementById('entryMessage').value.trim();
   if (!msg) return showToast('Please enter an entry message.');
-  localStorage.setItem('entryMessage', msg);
+  refreshSplashQuote(msg);
   window.supabase
     .from('profiles')
     .update({ entry_message: msg })
@@ -3054,7 +3088,7 @@ function saveEntryMessage() {
 
 function loadEntryMessageInput() {
   const input = document.getElementById('entryMessage');
-  if (input) input.value = localStorage.getItem('entryMessage') || 'BE BETTER THAN YESTERDAY';
+  if (input) input.value = userProfile?.entry_message || 'BE BETTER THAN YESTERDAY';
 }
 
 // Motivation Settings Functions
@@ -3063,7 +3097,6 @@ async function saveMotivationSettings() {
 
   if (message) {
     userMessage = message;
-    localStorage.setItem('userMessage', message);
 
     // Save to database for permanent storage
     try {
@@ -3108,9 +3141,8 @@ function showMotivationPopup() {
 
 async function loadMotivationSettings() {
   const userMessageInput = document.getElementById('userMessage');
-  let dbLoaded = false;
 
-  // Try to load from database first
+  // Load from database (per-user)
   try {
     const { data: profile } = await window.supabase
       .from('profiles')
@@ -3118,22 +3150,10 @@ async function loadMotivationSettings() {
       .eq('id', currentUser.id)
       .single();
 
-    if (profile) {
-      dbLoaded = true;
-      userMessage = profile.motivation_message || '';
-      if (userMessage) {
-        localStorage.setItem('userMessage', userMessage);
-      } else {
-        localStorage.removeItem('userMessage');
-      }
-    }
+    userMessage = profile?.motivation_message || '';
   } catch (error) {
     console.error('Failed to load motivation settings from database:', error);
-  }
-
-  // Fallback to localStorage only if database couldn't be read
-  if (!dbLoaded) {
-    userMessage = localStorage.getItem('userMessage') || '';
+    userMessage = '';
   }
 
   if (userMessageInput && userMessage) {
@@ -3596,19 +3616,29 @@ async function saveIncome() {
 }
 
 // Expense functions
+const DEFAULT_EXPENSE_CATEGORIES = ['Milk', 'Peanut Butter', 'Eggs', 'Biryani', 'Online Shopping', 'Recharge', 'Study', 'Fee', 'Food', 'Travel', 'Shopping', 'Bills', 'Entertainment', 'Medicine', 'Personal', 'Other'];
+
+function getCustomExpenseCategories() {
+  // Custom categories are derived from saved expense transactions in the database
+  return [...new Set(
+    transactions
+      .filter(t => t.transaction_type === 'expense' && t.category && !DEFAULT_EXPENSE_CATEGORIES.includes(t.category))
+      .map(t => t.category)
+  )];
+}
+
 function loadCustomCategories() {
   const categoryEl = document.getElementById('expenseCategory');
   const categoryFilterEl = document.getElementById('categoryFilter');
   if (!categoryEl) return;
-  
-  const customCategories = JSON.parse(localStorage.getItem('customExpenseCategories') || '[]');
-  
+
+  const customCategories = getCustomExpenseCategories();
+
   // Remove existing custom categories (except the "add_custom" option)
   const options = Array.from(categoryEl.options);
   options.forEach(option => {
     if (option.value === 'add_custom') return;
-    const isDefault = ['Milk', 'Peanut Butter', 'Eggs', 'Biryani', 'Online Shopping', 'Recharge', 'Study', 'Fee', 'Food', 'Travel', 'Shopping', 'Bills', 'Entertainment', 'Medicine', 'Personal', 'Other'].includes(option.value);
-    if (!isDefault) {
+    if (!DEFAULT_EXPENSE_CATEGORIES.includes(option.value)) {
       categoryEl.removeChild(option);
     }
   });
@@ -3627,8 +3657,7 @@ function loadCustomCategories() {
     const filterOptions = Array.from(categoryFilterEl.options);
     filterOptions.forEach(option => {
       if (option.value === '') return;
-      const isDefault = ['Milk', 'Peanut Butter', 'Eggs', 'Biryani', 'Online Shopping', 'Recharge', 'Study', 'Fee', 'Food', 'Travel', 'Shopping', 'Bills', 'Entertainment', 'Medicine', 'Personal', 'Other'].includes(option.value);
-      if (!isDefault) {
+      if (!DEFAULT_EXPENSE_CATEGORIES.includes(option.value)) {
         categoryFilterEl.removeChild(option);
       }
     });
@@ -3720,14 +3749,6 @@ async function saveExpense() {
       return;
     }
     category = customCategoryEl.value.trim();
-    
-    // Save custom category to localStorage
-    const customCategories = JSON.parse(localStorage.getItem('customExpenseCategories') || '[]');
-    if (!customCategories.includes(category)) {
-      customCategories.push(category);
-      localStorage.setItem('customExpenseCategories', JSON.stringify(customCategories));
-      loadCustomCategories();
-    }
   }
   
   if (!amount || !category || !accountId || !date) {
@@ -3758,7 +3779,8 @@ async function saveExpense() {
     
     if (data) {
       transactions.unshift(data);
-      
+      loadCustomCategories();
+
       // Update account balance
       const account = accounts.find(acc => acc.id === accountId);
       if (account) {

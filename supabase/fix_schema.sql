@@ -48,5 +48,6 @@ ALTER TABLE daily_notes ALTER COLUMN note DROP NOT NULL;
 
 -- 4. profiles: motivation settings columns
 ALTER TABLE profiles
-  ADD COLUMN IF NOT EXISTS motivation_emoji TEXT,
   ADD COLUMN IF NOT EXISTS motivation_message TEXT;
+
+ALTER TABLE profiles DROP COLUMN IF EXISTS motivation_emoji;

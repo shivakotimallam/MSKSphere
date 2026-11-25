@@ -686,8 +686,10 @@ CREATE TRIGGER update_daily_notes_updated_at
 -- ============================================================
 -- Add motivation settings columns to profiles table
 ALTER TABLE profiles
-ADD COLUMN IF NOT EXISTS motivation_emoji TEXT,
 ADD COLUMN IF NOT EXISTS motivation_message TEXT;
+
+-- Drop the unused motivation_emoji column if it exists
+ALTER TABLE profiles DROP COLUMN IF EXISTS motivation_emoji;
 
 -- ============================================================
 -- 7b. PROFILES — ENTRY SCREEN MESSAGE

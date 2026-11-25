@@ -73,7 +73,7 @@
   (function(){
     var scr=document.getElementById('splashScreen'),
         q=document.getElementById('splashQuote'),
-        text=(localStorage.getItem('entryMessage')||'BE BETTER THAN YESTERDAY').toUpperCase(),
+        text='BE BETTER THAN YESTERDAY',
         i=0;
     var li=0;
     text.split(' ').forEach(function(word){
@@ -90,7 +90,9 @@
       }
       q.appendChild(w);
     });
-    setTimeout(function(){scr.classList.add('hide');setTimeout(function(){scr.remove()},700)},3600);
+    function hideSplash(){scr.classList.add('hide');setTimeout(function(){scr.remove()},700)}
+    window.__hideSplash=hideSplash;
+    window.__splashHideTimer=setTimeout(hideSplash,5000);
   })();
   </script>
 
@@ -1251,6 +1253,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
   <div id="toastContainer" class="toast-container"></div>
   <script src="js/config.js?v=5" defer></script>
-  <script src="script.min.js?v=95" defer></script>
+  <script src="script.min.js?v=96" defer></script>
 </body>
 </html>
